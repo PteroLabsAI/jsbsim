@@ -357,6 +357,7 @@ private:
 
   // rpm control
   double Sense;
+  double RotationSign; // +1 for CCW, -1 for CW (preserves rotation direction even when Sense=0)
   double NominalRPM;
   double MinimalRPM;
   double MaximalRPM;
