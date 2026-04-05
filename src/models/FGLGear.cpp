@@ -565,7 +565,7 @@ void FGLGear::CrashDetect(void)
   if ( (compressLength > 500.0 ||
       vFn.Magnitude() > 100000000.0 ||
       GetMoments().Magnitude() > 5000000000.0 ||
-      SinkRate > 1.4666*30 ) && !fdmex->IntegrationSuspended())
+      compressSpeed > 1.4666*30 ) && !fdmex->IntegrationSuspended())
   {
     if (debug_lvl > 0) {
       FGLogging log(LogLevel::INFO);
