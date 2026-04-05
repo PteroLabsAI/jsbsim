@@ -473,8 +473,18 @@ void FGRotor::calc_coning_angle(double theta_0)
 
 void FGRotor::calc_flapping_angles(double theta_0, const FGColumnVector3 &pqr_fus_w)
 {
-  double lock_gamma = LockNumberByRho * rho;
+  // Below 10% of nominal RPM the rotor generates negligible aerodynamic
+  // forces and the pqr/Omega terms in the flapping equations diverge.
+  // Zero out flapping rather than computing meaningless values.
+  double Omega_threshold = (NominalRPM * 0.1 / 60.0) * 2.0 * M_PI;
+  if (Omega < Omega_threshold) {
+    a_1 = 0.0;
+    b_1 = 0.0;
+    a_dw = 0.0;
+    return;
+  }
 
+  double lock_gamma = LockNumberByRho * rho;
 
   double mu2_2 = sqr(mu)/2.0;
   double t075 = theta_0 + 0.75 * BladeTwist;  // common approximation for rectangular blades
@@ -665,8 +675,24 @@ void FGRotor::CalcRotorState(void)
 
   // ... and assign to inherited vFn and vMn members
   //     (for processing see FGForce::GetBodyForces).
-  vFn = body_forces(A_IC, B_IC);
-  vMn = Transform() * body_moments(A_IC, B_IC);
+
+  // Below 10% nominal RPM: zero all forces and moments.
+  // Between 10% and 30%: blend only moments (flapping/hub), keep thrust full.
+  // Thrust is physically valid at any RPM, but flapping moments contain
+  // pqr-dependent terms that need damping during spinup.
+  double Omega_lo = (NominalRPM * 0.1 / 60.0) * 2.0 * M_PI;
+  double Omega_hi = (NominalRPM * 0.5 / 60.0) * 2.0 * M_PI;
+  if (Omega < Omega_lo) {
+    vFn.InitMatrix();
+    vMn.InitMatrix();
+  } else {
+    vFn = body_forces(A_IC, B_IC);
+    vMn = Transform() * body_moments(A_IC, B_IC);
+    if (Omega < Omega_hi) {
+      double blend = (Omega - Omega_lo) / (Omega_hi - Omega_lo);
+      vMn *= blend;  // only moments blended, thrust (vFn) stays full
+    }
+  }
 
 }
 
