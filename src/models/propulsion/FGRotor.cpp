@@ -522,7 +522,7 @@ void FGRotor::calc_flapping_angles(double theta_0, const FGColumnVector3 &pqr_fu
   // used in  force calc
   a_dw = 1.0/(1.0 - mu2_2) * (
                                  (2.0*lambda + (8.0/3.0)*t075)*mu
-                               - 24.0 * rs * pqr_fus_w(eQ)/(lock_gamma*Omega)
+                               - 24.0 * pqr_fus_w(eQ)/(lock_gamma*Omega)
                                  * ( 1.0 - ( 0.29 * t075 / (C_T/Solidity) ) )
                              );
 
