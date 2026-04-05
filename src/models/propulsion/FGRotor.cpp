@@ -500,8 +500,8 @@ void FGRotor::calc_flapping_angles(double theta_0, const FGColumnVector3 &pqr_fu
   // For CCW rotor (+1): standard formulation.
   // For CW rotor (-1): body rate coupling terms flip sign because
   // precession phase is opposite for reversed rotation.
-  // Sense: +1 CCW, -1 CW. Gyroscopic precession flips with rotation direction.
-  double rs = Sense;
+  // RotationSign: +1 CCW, -1 CW. Preserved even when Sense=0 (coaxial).
+  double rs = RotationSign;
 
   a_1 = 1.0/(1.0 - mu2_2) * (
                                  (2.0*lambda + (8.0/3.0)*t075)*mu
