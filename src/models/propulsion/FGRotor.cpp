@@ -496,23 +496,16 @@ void FGRotor::calc_flapping_angles(double theta_0, const FGColumnVector3 &pqr_fu
   double mu2_2 = sqr(mu)/2.0;
   double t075 = theta_0 + 0.75 * BladeTwist;  // common approximation for rectangular blades
 
-  // RotationSign accounts for gyroscopic precession direction.
-  // For CCW rotor (+1): standard formulation.
-  // For CW rotor (-1): body rate coupling terms flip sign because
-  // precession phase is opposite for reversed rotation.
-  // RotationSign: +1 CCW, -1 CW. Preserved even when Sense=0 (coaxial).
-  double rs = RotationSign;
-
   a_1 = 1.0/(1.0 - mu2_2) * (
                                  (2.0*lambda + (8.0/3.0)*t075)*mu
-                               + rs * pqr_fus_w(eP)/Omega
-                               - 16.0 * rs * pqr_fus_w(eQ)/(lock_gamma*Omega)
+                               + pqr_fus_w(eP)/Omega
+                               - 16.0 * pqr_fus_w(eQ)/(lock_gamma*Omega)
                              );
 
   b_1 = 1.0/(1.0 + mu2_2) * (
                                  (4.0/3.0)*mu*a0
-                               - rs * pqr_fus_w(eQ)/Omega
-                               - 16.0 * rs * pqr_fus_w(eP)/(lock_gamma*Omega)
+                               - pqr_fus_w(eQ)/Omega
+                               - 16.0 * pqr_fus_w(eP)/(lock_gamma*Omega)
                              );
 
   // Clamp cyclic flapping — linear model invalid beyond ~15°.
