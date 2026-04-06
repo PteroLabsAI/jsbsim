@@ -71,7 +71,7 @@ FGRotor::FGRotor(FGFDMExec *exec, Element* rotor_element, int num)
   : FGThruster(exec, rotor_element, num),
     rho(0.002356),                                  // environment
     Radius(0.0), BladeNum(0),                       // configuration parameters
-    Sense(1.0), RotationSign(1.0), NominalRPM(0.0), MinimalRPM(0.0), MaximalRPM(0.0),
+    Sense(1.0), NominalRPM(0.0), MinimalRPM(0.0), MaximalRPM(0.0),
     ExternalRPM(0), RPMdefinition(0), ExtRPMsource(NULL), SourceGearRatio(1.0),
     BladeChord(0.0), LiftCurveSlope(0.0), BladeTwist(0.0), HingeOffset(0.0),
     BladeFlappingMoment(0.0), BladeMassMoment(0.0), PolarMoment(0.0),
@@ -107,15 +107,12 @@ FGRotor::FGRotor(FGFDMExec *exec, Element* rotor_element, int num)
   thruster_element = rotor_element->GetParent()->FindElement("sense");
   if (thruster_element) {
     double s = thruster_element->GetDataAsNumber();
-    // RotationSign: actual rotation direction, used in flapping equations.
-    // Sense: torque reaction (+1/-1 for real torque, 0 for coaxial/no torque).
-    RotationSign = (s < 0.0) ? -1.0 : 1.0;
     if (s < -0.1) {
-      Sense = -1.0; // 'CW' as seen from above, with torque
+      Sense = -1.0; // 'CW' as seen from above
     } else if (s < 0.1) {
-      Sense = 0.0;  // 'coaxial' (no torque reaction)
+      Sense = 0.0;  // 'coaxial'
     } else {
-      Sense = 1.0; // 'CCW' as seen from above, with torque
+      Sense = 1.0; // 'CCW' as seen from above
     }
   }
 
@@ -467,10 +464,6 @@ void FGRotor::calc_coning_angle(double theta_0)
   double a0_t0 = (1.0/8.0  + 1.0/8.0  * mu*mu) * theta_0;
   double a0_t1 = (1.0/10.0 + 1.0/12.0 * mu*mu) * BladeTwist;
   a0 = lock_gamma * ( a0_l + a0_t0 + a0_t1);
-
-  // Clamp coning angle — linear flapping model is invalid beyond ~15°.
-  // Real rotors have physical flap stops that limit excursion.
-  a0 = Constrain(0.0, a0, 0.26);
   return;
 }
 
@@ -507,10 +500,6 @@ void FGRotor::calc_flapping_angles(double theta_0, const FGColumnVector3 &pqr_fu
                                - pqr_fus_w(eQ)/Omega
                                - 16.0 * pqr_fus_w(eP)/(lock_gamma*Omega)
                              );
-
-  // Clamp cyclic flapping — linear model invalid beyond ~15°.
-  a_1 = Constrain(-0.26, a_1, 0.26);
-  b_1 = Constrain(-0.26, b_1, 0.26);
 
   // used in  force calc
   a_dw = 1.0/(1.0 - mu2_2) * (
