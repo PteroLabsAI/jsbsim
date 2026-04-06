@@ -677,9 +677,9 @@ void FGRotor::CalcRotorState(void)
   //     (for processing see FGForce::GetBodyForces).
 
   // Below 10% nominal RPM: zero all forces and moments.
-  // Between 10% and 30%: blend only moments (flapping/hub), keep thrust full.
-  // Thrust is physically valid at any RPM, but flapping moments contain
-  // pqr-dependent terms that need damping during spinup.
+  // Between 10% and 50%: blend forces and moments for smooth spinup.
+  // Forces and moments must scale together to preserve force/moment equilibrium
+  // while the rotor transitions into its aerodynamic operating regime.
   double Omega_lo = (NominalRPM * 0.1 / 60.0) * 2.0 * M_PI;
   double Omega_hi = (NominalRPM * 0.5 / 60.0) * 2.0 * M_PI;
   if (Omega < Omega_lo) {
@@ -690,7 +690,8 @@ void FGRotor::CalcRotorState(void)
     vMn = Transform() * body_moments(A_IC, B_IC);
     if (Omega < Omega_hi) {
       double blend = (Omega - Omega_lo) / (Omega_hi - Omega_lo);
-      vMn *= blend;  // only moments blended, thrust (vFn) stays full
+      vFn *= blend;
+      vMn *= blend;
     }
   }
 
