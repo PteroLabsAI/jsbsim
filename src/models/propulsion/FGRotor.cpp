@@ -678,8 +678,8 @@ void FGRotor::CalcRotorState(void)
 
   // Below 10% nominal RPM: zero all forces and moments.
   // Between 10% and 50%: blend forces and moments for smooth spinup.
-  // Forces and moments must scale together to preserve force/moment equilibrium
-  // while the rotor transitions into its aerodynamic operating regime.
+  // Quadratic blend approximates the real Omega^2 dependence of aerodynamic
+  // forces/moments, preventing oversized reactions at low RPM.
   double Omega_lo = (NominalRPM * 0.1 / 60.0) * 2.0 * M_PI;
   double Omega_hi = (NominalRPM * 0.5 / 60.0) * 2.0 * M_PI;
   if (Omega < Omega_lo) {
@@ -689,7 +689,8 @@ void FGRotor::CalcRotorState(void)
     vFn = body_forces(A_IC, B_IC);
     vMn = Transform() * body_moments(A_IC, B_IC);
     if (Omega < Omega_hi) {
-      double blend = (Omega - Omega_lo) / (Omega_hi - Omega_lo);
+      double t = (Omega - Omega_lo) / (Omega_hi - Omega_lo);
+      double blend = t * t;
       vFn *= blend;
       vMn *= blend;
     }
