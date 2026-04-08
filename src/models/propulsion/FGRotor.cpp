@@ -677,23 +677,17 @@ void FGRotor::CalcRotorState(void)
   //     (for processing see FGForce::GetBodyForces).
 
   // Below 10% nominal RPM: zero all forces and moments.
-  // Between 10% and 50%: blend forces and moments for smooth spinup.
-  // Quadratic blend approximates the real Omega^2 dependence of aerodynamic
-  // forces/moments, preventing oversized reactions at low RPM.
-  double Omega_lo = (NominalRPM * 0.1 / 60.0) * 2.0 * M_PI;
-  double Omega_hi = (NominalRPM * 0.5 / 60.0) * 2.0 * M_PI;
-  if (Omega < Omega_lo) {
+  // Flapping is already cut off at 10% in calc_flapping_angles(), but
+  // mu=V/(Omega*R) and lambda terms also become unreliable near Omega->0.
+  // Above 10% no blend is needed: forces and moments already scale with
+  // Omega^2 via Thrust, Torque, J_side, and hub moment (mf) calculations.
+  double Omega_cutoff = (NominalRPM * 0.1 / 60.0) * 2.0 * M_PI;
+  if (Omega < Omega_cutoff) {
     vFn.InitMatrix();
     vMn.InitMatrix();
   } else {
     vFn = body_forces(A_IC, B_IC);
     vMn = Transform() * body_moments(A_IC, B_IC);
-    if (Omega < Omega_hi) {
-      double t = (Omega - Omega_lo) / (Omega_hi - Omega_lo);
-      double blend = t * t;
-      vFn *= blend;
-      vMn *= blend;
-    }
   }
 
 }
