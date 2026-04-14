@@ -89,10 +89,13 @@ endif(WIN32)
 
 set_target_properties(libJSBSim PROPERTIES
                                 OUTPUT_NAME JSBSim
-                                EXPORT_NAME JSBSim
-                                VERSION ${LIBRARY_VERSION})
+                                EXPORT_NAME JSBSim)
 
-if(BUILD_SHARED_LIBS)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set_target_properties(libJSBSim PROPERTIES VERSION ${LIBRARY_VERSION})
+endif()
+
+if(BUILD_SHARED_LIBS AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set_target_properties(libJSBSim PROPERTIES
                             SOVERSION ${LIBRARY_SOVERSION})
   install(TARGETS libJSBSim EXPORT JSBSimTargets
