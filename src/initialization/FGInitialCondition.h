@@ -596,6 +596,16 @@ public:
       @param psi Initial heading angle in radians */
   void SetPsiRadIC(double psi) { SetEulerAngleRadIC(ePsi, psi); }
 
+  /** Sets the initial orientation as a quaternion directly, bypassing the
+      Euler angle representation. This avoids gimbal lock at theta=±90°
+      which would otherwise redistribute phi/psi during the Euler→quat
+      round-trip inside SetEulerAngleRadIC. Used for tailsitter attitudes.
+      @param q0 scalar component
+      @param q1 i component (around body X)
+      @param q2 j component (around body Y)
+      @param q3 k component (around body Z) */
+  void SetOrientationQuaternionIC(double q0, double q1, double q2, double q3);
+
   /** Sets the initial latitude.
       @param lat Initial latitude in radians */
   void SetLatitudeRadIC(double lat);
