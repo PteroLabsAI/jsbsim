@@ -473,6 +473,33 @@ void FGInitialCondition::SetEulerAngleRadIC(int idx, double angle)
 }
 
 //******************************************************************************
+// Sets the body orientation directly from quaternion components.
+
+void FGInitialCondition::SetOrientationQuaternionIC(double q0, double q1, double q2, double q3)
+{
+  const FGMatrix33& Tb2l = orientation.GetTInv();
+  const FGMatrix33& Tl2b = orientation.GetT();
+  FGColumnVector3 _vt_NED = Tb2l * Tw2b * FGColumnVector3(vt, 0., 0.);
+  FGColumnVector3 _vWIND_NED = _vt_NED - vUVW_NED;
+  FGColumnVector3 _vUVW_BODY = Tl2b * vUVW_NED;
+
+  orientation(1) = q0;
+  orientation(2) = q1;
+  orientation(3) = q2;
+  orientation(4) = q3;
+  orientation.Normalize();
+
+  if ((lastSpeedSet != setned) && (lastSpeedSet != setvg)) {
+    const FGMatrix33& newTb2l = orientation.GetTInv();
+    vUVW_NED = newTb2l * _vUVW_BODY;
+    _vt_NED = vUVW_NED + _vWIND_NED;
+    vt = _vt_NED.Magnitude();
+  }
+
+  calcAeroAngles(_vt_NED);
+}
+
+//******************************************************************************
 // Modifies an aircraft velocity component (eU, eV or eW) in the body frame. The
 // true airspeed is modified accordingly. If there is some wind, the airspeed
 // direction modification may differ from the body velocity modification.
