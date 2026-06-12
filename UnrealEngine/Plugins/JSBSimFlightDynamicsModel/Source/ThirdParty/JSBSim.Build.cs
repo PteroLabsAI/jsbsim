@@ -64,7 +64,21 @@ public class JSBSim : ModuleRules
         
         PublicAdditionalLibraries.Add(LibPath);
         RuntimeDependencies.Add(LibPath);
-        
+
+        // libJSBSim.so is dynamically linked against libc++.so.1 / libc++abi.so.1 /
+        // libunwind.so.1. The active UE Linux cross-compile toolchain ships libc++ only as
+        // static archives, and the LLVM libunwind.so.1 differs from the system libunwind.so.8
+        // on Ubuntu/Debian, so these cannot be assumed present on the target host. Bundle the
+        // .so copies (staged next to libJSBSim.so in Lib/Linux) as RuntimeDependencies so the
+        // dynamic loader resolves them via the main binary's $ORIGIN RPATH at startup.
+        if (Target.Platform == UnrealTargetPlatform.Linux)
+        {
+            string LinuxLibDir = Path.Combine(ModuleDirectory, JSBSimLocalFolder, LibFolderName, "Linux");
+            RuntimeDependencies.Add(CheckForFile(LinuxLibDir, "libc++.so.1"));
+            RuntimeDependencies.Add(CheckForFile(LinuxLibDir, "libc++abi.so.1"));
+            RuntimeDependencies.Add(CheckForFile(LinuxLibDir, "libunwind.so.1"));
+        }
+
         if (Target.Platform == UnrealTargetPlatform.Android)
         {
             string PluginPath = Utils.MakePathRelativeTo(ModuleDirectory, Target.RelativeEnginePath);
