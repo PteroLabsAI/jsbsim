@@ -13,10 +13,16 @@
 
        Note:
          When developing a new helicopter fdm you should run the rotor
-         in constant-speed mode (by setting ExternalRPM to -1 and 
+         in constant-speed mode (by setting ExternalRPM to -1 and
          manipulate propulsion/engine[x]/x-rpm-dict accordingly).
-         Implement the governor as last step, otherwise chances are high 
+         Implement the governor as last step, otherwise chances are high
          that a bad governor might spoil a good model.
+
+       PX4 integration:
+         Governor auto-activates when engine throttle > 1%.
+         PX4 default throttle curve [1,1,1,1,1] sends constant max
+         throttle, and the governor PID regulates actual engine power
+         to maintain nominal RPM.
 
       =================================================================  -->
 
@@ -25,8 +31,24 @@
   <property value="324.0"> fcs/nominal-rpm </property>
 
   <channel name="RPM-Governor">
+
+    <!-- Auto-activate governor when PX4 sends engine throttle -->
+    <switch name="fcs/rpm-governor-active-norm">
+      <default value="0.0"/>
+      <test value="1.0"> fcs/throttle-cmd-norm[0] GT 0.01 </test>
+    </switch>
+
+    <!-- PID trigger logic:
+         -1 = reset integrator to zero (governor inactive OR severe overspeed)
+          0 = normal PID operation
+         +1 = freeze integrator (not used currently)
+
+         Anti-windup: reset integrator during overspeed (RPM > nominal+20)
+         to prevent Ki from accumulating large negative values that cause
+         throttle to stay at 0 long after RPM returns to nominal. -->
     <switch name="fcs/rpm-governor-pid-inhibit">
       <default value="-1.0"/>
+      <test value="-1.0"> fcs/rpm-delta LT -20.0 </test>
       <test value="0.0"> fcs/rpm-governor-active-norm GT 0.0 </test>
     </switch>
     <fcs_function name="fcs/rpm-delta">
@@ -54,7 +76,7 @@
         <min>  0.00 </min>
         <max>  1.00 </max>
       </clipto>
-      <output>fcs/throttle-pos-norm</output> 
+      <output>fcs/throttle-pos-norm</output>
     </pid>
   </channel>
 
