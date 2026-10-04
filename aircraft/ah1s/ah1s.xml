@@ -49,7 +49,7 @@
 
     <note> Additional setup options are in the 'aerodynamics' section </note>
 
-    <note> The model currently flies with electric engines, so tanks are left empty. </note>
+    <note> Tanks are left empty to keep the 8500 lbs test weight, so scripts set propulsion/fuel_freeze for the turbine. </note>
 
     <limitation> The rotor downwash adds an varying 'wind' system, thus some axis transforms
                  occur in the 'aerodynamics' section.
@@ -177,8 +177,8 @@
   </ground_reactions>
 
   <propulsion>
-    <!-- should become avco_lycoming_t53 turbo-shaft engine -->
-    <engine file="electric_1500hp">
+    <!-- transmission limit 1290 shp (100 %Q, 30 min), 1134 shp continuous: TM 1-1520-236-10 para 2-17, not enforced -->
+    <engine file="T53-L-703">
       <feed>0</feed>
       <feed>1</feed>
       <thruster file="ah1s_rotor">

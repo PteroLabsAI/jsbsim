@@ -33,4 +33,6 @@
   <elevation   unit="FT">   2283.5     </elevation>
   <altitudeAGL unit="FT">      6.3     </altitudeAGL>
 
+  <running> 0 </running>
+
 </initialize>

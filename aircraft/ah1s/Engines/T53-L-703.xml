@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<!--
+  Avco Lycoming T53-L-703 turboshaft, AH-1S main rotor drive. Sources:
+  [A] TM 1-1520-236-10 AH-1F operator's manual (2001) https://upload.wikimedia.org/wikipedia/commons/e/e1/TM-1-1520-236-10.pdf
+  [B] TM 55-1520-236-10 AH-1S operator's manual (1980) https://archive.org/details/TM5515202361080AH1S
+  [D] TM 55-1520-236-23-2 https://www.liberatedmanuals.com/TM-55-1520-236-23-2.pdf
+  [E] USAAEFA 77-25 AH-1S (1980) https://archive.org/details/DTIC_ADA089625
+  [G] DTIC ADA182369 UH-1H with T53-L-703 https://archive.org/details/DTIC_ADA182369
+  Table RPM is the output shaft speed, rotor rpm x gearratio: 100 % N2 = 6600 rpm [D].
+-->
+
+<turboprop_engine name="T53-L-703">
+  <maxpower unit="HP">          1800.0  </maxpower>         <!-- military, SL standard day [G] Table 1, [E] sec. 5 -->
+  <idlen1>                        70.0  </idlen1>           <!-- idle 68-72 % [A] p. 8-9 -->
+  <maxn1>                        106.0  </maxn1>            <!-- [A] para 5-7a(1), [G] Table 1 -->
+  <psfc unit="LBS/HR/HP">          0.62 </psfc>             <!-- derived from [B] Fig 7-7: 695 lb/hr at 87 %Q of 1290 shp -->
+  <n1idle_max_delay>               1.0  </n1idle_max_delay> <!-- engtm601.xml template, no T53 data -->
+  <maxstartingtime>               20.0  </maxstartingtime>  <!-- engtm601.xml template, no T53 data -->
+  <startern1>                     20.0  </startern1>        <!-- engtm601.xml template, no T53 data -->
+  <itt_delay>                      0.05 </itt_delay>        <!-- engtm601.xml template, no T53 data -->
+
+  <function name="EnginePowerVC">
+    <table>
+      <description> Power lapse vs pressure and airspeed: engtm601.xml template, no T53 data </description>
+      <independentVar lookup="row">atmosphere/P-psf</independentVar>
+      <independentVar lookup="column">velocities/ve-kts</independentVar>
+      <tableData>
+                 0     50    100    150    200    250
+       503   0.357  0.380  0.400  0.425  0.457  0.486
+      1048   0.586  0.589  0.600  0.621  0.650  0.686
+      1328   0.707  0.721  0.731  0.757  0.786  0.821
+      1496   0.779  0.786  0.808  0.821  0.857  0.900
+      1684   0.850  0.857  0.874  0.900  0.943  0.979
+      1896   0.914  0.929  0.946  0.971  1      1.057
+      2135   1      1.011  1.029  1.043  1.083  1.150
+      2213   1.029  1.043  1.057  1.079  1.114  1.171
+      </tableData>
+    </table>
+  </function>
+
+  <table name="EnginePowerRPM_N1" type="internal">
+    <description> Power [HP] vs output rpm and N1: engtm601.xml shape, rpm x 3.3 (2000 to 6600), N1 60-101 onto idle 70-max 106, power x 1800/700 </description>
+    <!-- no 0-rpm row: below 2640 rpm FGTable holds that row, so the turbine breaks the rotor gear's static friction -->
+    <!-- 6897 rpm = N2 max 104.5 % [B] Fig 5-1, zero power there (chosen) so a declutched turbine cannot run away -->
+    <tableData>
+               0       5      70    93.4   100.6   101.5   102.4   103.3   104.2   105.1   106.0   106.9
+      2640     0     1.3    90.0   514.3   900.0   977.1  1080.0  1182.9  1285.7  1362.9  1491.4  1594.3
+      3960     0     1.3    77.1   591.4  1028.6  1105.7  1208.6  1298.6  1414.3  1517.1  1645.7  1748.6
+      5280     0     1.3    12.9   617.1  1131.4  1221.4  1311.4  1414.3  1530.0  1620.0  1748.6  1851.4
+      6600     0     0.3     0.3   578.6  1157.1  1272.9  1350.0  1452.9  1568.6  1671.4  1800.0  1915.7
+      6897     0     0       0       0       0       0       0       0       0       0       0       0
+    </tableData>
+  </table>
+
+  <table name="ITT_N1" type="internal">
+    <description> TGT [deg C] vs N1 and engine run (0=off / 1=running); off column engtm601.xml template </description>
+    <!-- running: 400 = continuous floor at idle, 820 = continuous limit at 1500 shp max continuous, 880 = 30-min limit at 1800 shp; [B] Fig 5-1, [G] Table 1 -->
+    <tableData>
+              0     1
+        0     0     0
+       15   100   100
+       70   180   400
+      103.7 270   820
+      106   280   880
+    </tableData>
+  </table>
+
+  <table name="CombustionEfficiency_N1" type="internal">
+    <description> Constant SFC: no T53 part-power data, and the built-in default assumes max N1 100 </description>
+    <tableData>
+        0   1.0
+      110   1.0
+    </tableData>
+  </table>
+
+</turboprop_engine>

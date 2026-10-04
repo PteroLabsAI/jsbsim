@@ -3,7 +3,7 @@
 
 <!--  =================================================================
 
-       RPM governor for the ah1s model (Adjusted for electric engines,
+       RPM governor for the ah1s model (Adjusted for the T53 turboshaft,
        and rather 'crisp').
 
        A more basic/lazy PID might use the following values:
@@ -27,6 +27,17 @@
   <channel name="RPM-Governor">
     <switch name="fcs/rpm-governor-pid-inhibit">
       <default value="-1.0"/>
+      <!-- anti-windup: hold the integrator while the throttle is pinned in the error's direction -->
+      <test logic="AND" value="1.0">
+        fcs/rpm-governor-active-norm GT 0.0
+        fcs/throttle-pid LE 0.0
+        fcs/rpm-delta LT 0.0
+      </test>
+      <test logic="AND" value="1.0">
+        fcs/rpm-governor-active-norm GT 0.0
+        fcs/throttle-pid GE 1.0
+        fcs/rpm-delta GT 0.0
+      </test>
       <test value="0.0"> fcs/rpm-governor-active-norm GT 0.0 </test>
     </switch>
     <fcs_function name="fcs/rpm-delta">
@@ -47,8 +58,8 @@
     <pid name="fcs/throttle-pid">
       <input>fcs/rpm-delta</input>
       <kp>  0.07   </kp>
-      <ki>  0.0012 </ki>
-      <kd> -0.0008 </kd>
+      <ki>  0.012  </ki> <!-- integral time kp/ki ~6 s, was 58 s: the turbine hovers at ~0.7 throttle (electric 0.5); chosen from flight-test runs -->
+      <kd>  0.07   </kd> <!-- kp x n1idle_max_delay: the lead cancels the N1 spool lag -->
       <trigger> fcs/rpm-governor-pid-inhibit </trigger>
       <clipto>
         <min>  0.00 </min>

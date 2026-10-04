@@ -30,6 +30,7 @@
     <property value="3.14159"> ap/afcs/psi-trim-rad </property>
     <property value="0.0"> propulsion/tank[0]/contents-lbs </property>
     <property value="0.0"> propulsion/tank[1]/contents-lbs </property>
+    <property value="1"> propulsion/fuel_freeze </property> <!-- the turbine runs on the empty tanks -->
 
     <!-- vehicle setup: ensure defaults -->
     <property value="1.0"> aero/setup/downwash-enable </property>
