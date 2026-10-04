@@ -70,7 +70,9 @@ class TestThrusterReset(JSBSimTestCase):
     def test_rotor(self):
         # Electric engine driving the main rotor through a transmission, the
         # tail rotor RPM is slaved to the main rotor.
-        self.check_reset('ah1s', 'reset00', {'fcs/rpm-governor-active-norm': 1.0},
+        # pterolabs: our rpm_governor.xml switches the governor on from the throttle (PX4 auto-activation).
+        self.check_reset('ah1s', 'reset00', {'fcs/rpm-governor-active-norm': 1.0,
+                                             'fcs/throttle-cmd-norm[0]': 1.0},
                          ['propulsion/engine[0]/rotor-rpm',
                           'propulsion/engine[0]/engine-rpm',
                           'propulsion/engine[1]/rotor-rpm'], 600)
