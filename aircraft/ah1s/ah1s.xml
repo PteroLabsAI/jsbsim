@@ -49,8 +49,6 @@
 
     <note> Additional setup options are in the 'aerodynamics' section </note>
 
-    <note> Tanks are left empty to keep the 8500 lbs test weight, so scripts set propulsion/fuel_freeze for the turbine. </note>
-
     <limitation> The rotor downwash adds an varying 'wind' system, thus some axis transforms
                  occur in the 'aerodynamics' section.
                  Currently this is an experimental (read: 'not so funny') feature. The calculations
@@ -92,16 +90,16 @@
   </metrics>
 
   <mass_balance>
-    <ixx unit="SLUG*FT2">    2593.0 </ixx>
-    <iyy unit="SLUG*FT2">   14320.0 </iyy>
-    <izz unit="SLUG*FT2">   12330.0 </izz>
-    <ixz unit="SLUG*FT2">       0.0 </ixz>
+    <ixx unit="SLUG*FT2">    1927.7 </ixx><!-- full-fuel 2593.0 minus the parallel-axis terms JSBSim adds for the tanks and the shifted empty CG -->
+    <iyy unit="SLUG*FT2">   13301.2 </iyy><!-- full-fuel 14320.0, same correction -->
+    <izz unit="SLUG*FT2">   11976.4 </izz><!-- full-fuel 12330.0, same correction -->
+    <ixz unit="SLUG*FT2">     -71.9 </ixz><!-- full-fuel 0.0, same correction -->
     <!-- grossweight: 6000 to 10000 lbs  -->
-    <emptywt unit="LBS">    8500.0 </emptywt>
+    <emptywt unit="LBS">    6720.0 </emptywt><!-- 8500 lb full-fuel weight of the original model minus both full tanks (1780 lb) -->
     <location name="CG" unit="IN">
-      <x>   172.0 </x><!-- 'allowed' range ~ 167 - 177 -->
+      <x>   170.94 </x><!-- (8500*172 - 1780*176)/6720: full-fuel CG stays at 172; 'allowed' range ~ 167 - 177 -->
       <y>     0.0 </y>
-      <z>    75.0 </z>
+      <z>    84.80 </z><!-- (8500*75 - 1780*38)/6720: full-fuel CG stays at 75 -->
     </location>
   </mass_balance>
 
@@ -223,8 +221,8 @@
         <y>     0.0 </y>
         <z>    38.0 </z>
       </location>
-      <capacity unit="LBS">    890.0  </capacity>
-      <contents unit="LBS">      0.0  </contents>
+      <capacity unit="LBS">    890.0  </capacity><!-- 2 x 890 = 262 US gal x 6.8 lb/gal JP-5: TM 1-1520-236-10 p. 2-43, para 6-9 -->
+      <contents unit="LBS">    890.0  </contents>
       <type>JP-5</type>
     </tank>
     <tank number="1" type="FUEL">
@@ -234,7 +232,7 @@
         <z>    38.0 </z>
       </location>
       <capacity unit="LBS">    890.0 </capacity>
-      <contents unit="LBS">      0.0 </contents>
+      <contents unit="LBS">    890.0 </contents>
       <type>JP-5</type>
     </tank>
   </propulsion>
