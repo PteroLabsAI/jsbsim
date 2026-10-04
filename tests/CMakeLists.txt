@@ -56,7 +56,8 @@ set(PYTHON_TESTS ResetOutputFiles
                  TestLighterThanAir
                  TestUnusableFuel
                  TestSensorRandomSeed
-                 TestPQRdot)
+                 TestPQRdot
+                 TestRotorLoad)
 
 foreach(test ${PYTHON_TESTS})
   add_test(NAME ${test}

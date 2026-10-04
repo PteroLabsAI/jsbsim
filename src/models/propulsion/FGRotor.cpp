@@ -153,6 +153,7 @@ FGRotor::FGRotor(FGFDMExec *exec, Element* rotor_element, int num)
   }
 
   // ExternalRPM -- is the RPM dictated ?
+  FGRotor* load_source = nullptr;
   Element* extrpm_el = rotor_element->FindElement("ExternalRPM");
   if (extrpm_el) {
     ExternalRPM = 1;
@@ -168,6 +169,9 @@ FGRotor::FGRotor(FGFDMExec *exec, Element* rotor_element, int num)
         SourceGearRatio = tr->GetGearRatio();
         //FGLogging log(LogLevel::INFO);
         //log << "# got sources' GearRatio: " << SourceGearRatio << "\n";
+        // only a source rotor with its own transmission can carry our load
+        if (tr->GetType() == ttRotor && static_cast<FGRotor*>(tr)->Transmission)
+          load_source = static_cast<FGRotor*>(tr);
       }
     }
     if (RPMdefinition != rdef) {
@@ -175,10 +179,18 @@ FGRotor::FGRotor(FGFDMExec *exec, Element* rotor_element, int num)
       log << "# discarded given RPM source (" << rdef
           << ") and switched to external control (-1).\n";
     }
+    if (extrpm_el->GetAttributeValue("load") != "1") {
+      load_source = nullptr;
+    } else if (!load_source) {
+      FGXMLLogging log(extrpm_el, LogLevel::ERROR);
+      log << "# load=\"1\" ignored, the RPM source is not a rotor with a transmission.\n";
+    }
   }
 
   // process rotor parameters
   engine_power_est = Configure(rotor_element);
+
+  if (load_source) load_source->AddDrivenRotor(this);
 
   // setup transmission if needed
   if (!ExternalRPM) {
@@ -224,6 +236,17 @@ FGRotor::FGRotor(FGFDMExec *exec, Element* rotor_element, int num)
 FGRotor::~FGRotor(){
   if (Transmission) delete Transmission;
   Debug(1);
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+void FGRotor::AddDrivenRotor(FGRotor* rotor)
+{
+  // the linked rotor spins with the drivetrain, so its polar moment is reflected too
+  double speed_ratio = rotor->SourceGearRatio / rotor->GearRatio;
+  PolarMoment += rotor->PolarMoment * speed_ratio * speed_ratio;
+  Transmission->SetThrusterMoment(PolarMoment);
+  DrivenRotors.push_back(rotor);
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -678,8 +701,13 @@ double FGRotor::Calculate(double EnginePower)
   CalcRotorState();
 
   if (! ExternalRPM) {
+    // linked rotors add their torque of the last step, reflected through the gear ratios
+    double torque = Torque;
+    for (auto rotor: DrivenRotors)
+      torque += rotor->Torque * rotor->SourceGearRatio / rotor->GearRatio;
+
     // the RPM values are handled inside Transmission
-    Transmission->Calculate(EnginePower, Torque, in.TotalDeltaT);
+    Transmission->Calculate(EnginePower, torque, in.TotalDeltaT);
 
     EngineRPM = Transmission->GetEngineRPM() * GearRatio;
     RPM = Transmission->GetThrusterRPM();

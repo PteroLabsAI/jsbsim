@@ -15,7 +15,7 @@
     <inflowlag>                          0.09 </inflowlag> 
     <hingeoffset unit="FT">             0.015 </hingeoffset>
 
-    <ExternalRPM> 0 </ExternalRPM>
+    <ExternalRPM load="1"> 0 </ExternalRPM>
     <controlmap> TAIL </controlmap>
 
 </rotor>

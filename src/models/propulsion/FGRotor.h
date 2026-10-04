@@ -44,6 +44,8 @@ INCLUDES
 #include "FGThruster.h"
 #include "FGTransmission.h"
 
+#include <vector>
+
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 FORWARD DECLARATIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
@@ -80,7 +82,7 @@ CLASS DOCUMENTATION
   <gearmoment unit="{MOMENT}"> {number} </gearmoment>
 
   <controlmap> {MAIN|TAIL|TANDEM} </controlmap>
-  <ExternalRPM> {number} </ExternalRPM>
+  <ExternalRPM load="{0|1}"> {number} </ExternalRPM>
 
   <groundeffectexp> {number} </groundeffectexp>
   <groundeffectshift unit="{LENGTH}"> {number} </groundeffectshift>
@@ -126,6 +128,8 @@ CLASS DOCUMENTATION
     \<controlmap>         - Defines the control inputs used (see notes).
 
     \<ExternalRPM>        - Links the rotor to another rotor, or an user controllable property.
+                            With load="1" a linked rotor also loads its source rotor's
+                            transmission (see notes), optional and defaults to 0.
 
     Experimental properties
 
@@ -166,6 +170,10 @@ CLASS DOCUMENTATION
     (The TAIL-map ignores lateral and longitudinal input). The rotor needs to be
     attached to a dummy engine, e.g. an 1HP electrical engine.
     A tandem rotor is setup analogous.
+    By default the linked rotor turns for free. With
+    <tt>\<ExternalRPM load="1"\> 0 \</ExternalRPM\></tt> its torque and polar
+    moment are passed through the gear ratios to the source rotor's transmission,
+    so the source rotor's engine also drives this rotor.
 
   <h4>- Sense -</h4>
 
@@ -310,6 +318,9 @@ public:
   /// Sets the longitudinal control input in radians.
   void SetLongitudinalCtrl(double c) { LongitudinalCtrl = c; }
 
+  /// Lets a linked rotor load this rotor's transmission (see ExternalRPM load="1").
+  void AddDrivenRotor(FGRotor* rotor);
+
   // Stubs. Only main rotor RPM is returned
   std::string GetThrusterLabels(int id, const std::string& delimeter);
   std::string GetThrusterValues(int id, const std::string& delimeter);
@@ -421,6 +432,7 @@ private:
 
   // interaction with engine
   FGTransmission *Transmission;
+  std::vector<FGRotor*> DrivenRotors; // linked rotors loading this transmission
   double EngineRPM;
   double MaxBrakePower;
   double GearLoss;
