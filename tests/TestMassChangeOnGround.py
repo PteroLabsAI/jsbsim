@@ -69,5 +69,11 @@ class TestMassChangeOnGround(JSBSimTestCase):
         self.assertAlmostEqual(self.structure_jump('BOGEY', 0.0), 0.0,
                                delta=TOLERANCE_FT)
 
+    def test_structure_contacts(self):
+        for cg_z in (0.0, 0.01):
+            with self.subTest(cg_z=cg_z):
+                self.assertAlmostEqual(self.structure_jump('STRUCTURE', cg_z),
+                                       0.0, delta=TOLERANCE_FT)
+
 
 RunTest(TestMassChangeOnGround)
