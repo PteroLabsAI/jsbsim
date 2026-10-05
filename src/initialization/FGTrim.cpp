@@ -507,6 +507,9 @@ FGTrim::RotationParameters FGTrim::calcRotation(vector<ContactPoints>& contacts,
                                                 const FGColumnVector3& u,
                                                 const FGColumnVector3& GM0)
 {
+  // A point already on the ground is at angle 0, give or take rounding (~1E-16
+  // rad), and must not wrap to 2*pi. Chosen well above rounding.
+  constexpr double onGroundAngleTolerance = 1E-9; // rad
   RotationParameters rParam;
   vector<ContactPoints>::iterator iter;
 
@@ -544,7 +547,7 @@ FGTrim::RotationParameters FGTrim::calcRotation(vector<ContactPoints>& contacts,
     double cosine = -DotProduct(MM0, CP) / sqrRadius;
     double sine = DotProduct(MM0 * u, CP) / sqrRadius;
     double angle = atan2(sine, cosine);
-    if (angle < 0.0) angle += 2.0 * M_PI;
+    if (angle < -onGroundAngleTolerance) angle += 2.0 * M_PI;
     if (angle < rParam.angleMin) {
       rParam.angleMin = angle;
       rParam.contactRef = iter;
