@@ -562,7 +562,10 @@ void FGFDMExec::LoadInputs(unsigned int idx)
     MassBalance->in.TanksWeight = Propulsion->GetTanksWeight();
     MassBalance->in.TanksMoment = Propulsion->GetTanksMoment();
     MassBalance->in.TankInertia = Propulsion->CalculateTankInertias();
-    MassBalance->in.WOW         = GroundReactions->GetWOW();
+    // Any contact unit holds the structure on the ground, not only bogeys.
+    MassBalance->in.WOW = false;
+    for (int i = 0; i < GroundReactions->GetNumGearUnits(); i++)
+      if (GroundReactions->GetGearUnit(i)->GetWOW()) MassBalance->in.WOW = true;
     break;
   case eAircraft:
     Aircraft->in.AeroForce     = Aerodynamics->GetForces();
