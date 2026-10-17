@@ -130,7 +130,9 @@ CLASS DOCUMENTATION
     forces are always negative - they are limited to values of zero or less. The
     gear force is simply the negative of the sum of the spring compression
     length times the spring coefficient and the gear velocity times the damping
-    coefficient.</li>
+    coefficient. A linear damper takes the gear velocity at the end of the time
+    step and is solved together with the friction forces, so that a large
+    coefficient does not make the strut unstable.</li>
     <li>The lateral/directional force acting on the aircraft through the landing
 
     gear (along the local frame X and Y axes) is calculated next. First, the
@@ -257,7 +259,9 @@ public:
   /// Gets the current gear compression velocity in ft/sec
   double  GetCompVel(void) const {return compressSpeed; }
   /// Gets the gear compression force in pounds
-  double  GetCompForce(void) const {return StrutForce;   }
+  double  GetCompForce(void) const {
+    return StrutForce - DamperMultiplier.value * StrutPerNormal;
+  }
 
   /// Sets the weight-on-wheels flag.
   void SetWOW(bool wow) {WOW = wow;}
@@ -345,7 +349,8 @@ private:
   double TakeoffDistanceTraveled;
   double TakeoffDistanceTraveled50ft;
   double LandingDistanceTraveled;
-  double MaximumStrutForce, StrutForce;
+  double MaximumStrutForce, StrutForce; // StrutForce excludes the solved damping
+  double StrutPerNormal; // strut force per unit of normal force
   double MaximumStrutTravel;
   double FCoeff;
   double WheelSlip;
@@ -365,6 +370,7 @@ private:
   bool isRetractable;
   bool Castered;
   bool StaticFriction;
+  bool implicitDamping; // linear damper, solved with the friction
   std::string name;
   double AGL; // Height above ground level
 
@@ -376,6 +382,7 @@ private:
   double  maxSteerAngle;
 
   LagrangeMultiplier LMultiplier[3];
+  LagrangeMultiplier DamperMultiplier; // normal force of the damper
 
   // NO std::shared_ptr<FGGroundReactions> here, to avoid circular references
   // since FGGroundReactions owns the instances of FGLGear.

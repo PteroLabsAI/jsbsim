@@ -54,6 +54,13 @@ struct LagrangeMultiplier {
   double Min;
   double Max;
   double value;
+  // Soft constraint value = -(ForceJacobian . contact velocity at the end of
+  // the step) / Compliance: Compliance[0] applies to value >= 0, [1] below.
+  double Compliance[2] = {0.0, 0.0};
+  // When set, Min and Max are per unit of the normal force
+  // Normal->NormalBase + Normal->value, which is solved in the same pass.
+  const LagrangeMultiplier* Normal = nullptr;
+  double NormalBase = 0.0;
 };
 
 } // namespace
