@@ -139,6 +139,11 @@ FGLGear::FGLGear(Element* el, FGFDMExec* fdmex, int number, const struct Inputs&
     }
   }
 
+  // Square law dampers and strut_force functions stay explicit.
+  implicitDamping = !fStrutForce && eDampType == dtLinear
+                    && eDampTypeRebound == dtLinear && bDamp > 0.0
+                    && bDampRebound > 0.0;
+
   if (el->FindElement("dynamic_friction"))
     dynamicFCoeff = el->FindElementValueAsNumber("dynamic_friction");
   if (el->FindElement("static_friction"))
@@ -265,6 +270,8 @@ void FGLGear::ResetToIC(void)
   compressLength  = 0.0;
   compressSpeed   = 0.0;
   maxCompLen      = 0.0;
+  StrutForce      = 0.0;
+  StrutPerNormal  = 1.0;
 
   WheelSlip = 0.0;
 
@@ -276,6 +283,7 @@ void FGLGear::ResetToIC(void)
     LMultiplier[i].Max = 0.0;
     LMultiplier[i].value = 0.0;
   }
+  DamperMultiplier = LagrangeMultiplier(); // value-initialized: all zeros
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -283,6 +291,9 @@ void FGLGear::ResetToIC(void)
 const FGColumnVector3& FGLGear::GetBodyForces(void)
 {
   double gearPos = 1.0;
+
+  // The damping of the previous step has been solved by now
+  MaximumStrutForce = max(MaximumStrutForce, fabs(GetCompForce()));
 
   vFn.InitMatrix();
 
@@ -328,6 +339,7 @@ const FGColumnVector3& FGLGear::GetBodyForces(void)
       // the normal direction to the ground (STRUCTURE)
       double normalZ = (in.Tec2l*normal)(eZ);
       LGearProj = -(mTGear.Transposed() * vGroundNormal)(eZ);
+      StrutPerNormal = eContactType == ctBOGEY ? LGearProj : 1.0;
 
       // The following equations use the vector to the tire contact patch
       // including the strut compression.
@@ -400,6 +412,7 @@ const FGColumnVector3& FGLGear::GetBodyForces(void)
       LMultiplier[ftRoll].value = 0.0;
       LMultiplier[ftSide].value = 0.0;
       LMultiplier[ftDynamic].value = 0.0;
+      DamperMultiplier.value = DamperMultiplier.NormalBase = 0.0;
 
       // Return to neutral position between 1.0 and 0.8 gear pos.
       SteerAngle *= max(gearPos-0.8, 0.0)/0.2;
@@ -629,7 +642,9 @@ void FGLGear::ComputeVerticalStrutForce()
     double springForce = -compressLength * kSpring;
     double dampForce = 0;
 
-    if (compressSpeed >= 0.0) {
+    if (implicitDamping) {
+      // Solved in FGAccelerations::CalculateFrictionForces
+    } else if (compressSpeed >= 0.0) {
 
       if (eDampType == dtLinear)
         dampForce = -compressSpeed * bDamp;
@@ -664,7 +679,6 @@ void FGLGear::ComputeVerticalStrutForce()
   }
 
   // Remember these values for reporting
-  MaximumStrutForce = max(MaximumStrutForce, fabs(StrutForce));
   MaximumStrutTravel = max(MaximumStrutTravel, fabs(compressLength));
 }
 
@@ -686,6 +700,39 @@ double FGLGear::GetGearUnitPos(void) const
 
 void FGLGear::ComputeJacobian(const FGColumnVector3& vWhlContactVec)
 {
+  DamperMultiplier.NormalBase = vFn(eZ);
+
+  // The linear damper is the soft constraint: normal force = damping * strut
+  // compression speed at the END of the step, which is stable whatever
+  // damping * dt / mass. Like compressSpeed, it is zero in trim and at dt = 0.
+  if (implicitDamping && compressLength > 0.0 && in.TotalDeltaT > 0.0
+      && !fdmex->GetTrimStatus()) {
+    double strutPerNormal2 = StrutPerNormal * StrutPerNormal;
+    // Same bound as the clamp of compressSpeed at compressLength/TotalDeltaT
+    double maxStrutSpeed = compressLength / in.TotalDeltaT;
+
+    DamperMultiplier.ForceJacobian = vGroundNormal;
+    DamperMultiplier.LeverArm = vWhlContactVec;
+    DamperMultiplier.Compliance[0] = strutPerNormal2 / bDamp;
+    DamperMultiplier.Compliance[1] = strutPerNormal2 / bDampRebound;
+    DamperMultiplier.Max = bDamp * maxStrutSpeed / StrutPerNormal;
+    // The strut pushes but never pulls
+    DamperMultiplier.Min = -min(DamperMultiplier.NormalBase,
+                                bDampRebound * maxStrutSpeed / StrutPerNormal);
+    DamperMultiplier.value = Constrain(DamperMultiplier.Min,
+                                       DamperMultiplier.value,
+                                       DamperMultiplier.Max);
+
+    GroundReactions->RegisterLagrangeMultiplier(&DamperMultiplier);
+  }
+  else
+    DamperMultiplier.value = 0.0;
+
+  // The friction bounds below are per unit of the normal force
+  double normalForce = DamperMultiplier.NormalBase + DamperMultiplier.value;
+  for (auto& lmult: LMultiplier)
+    lmult.Normal = &DamperMultiplier;
+
   // When the point of contact is moving, dynamic friction is used
   // This type of friction is limited to ctSTRUCTURE elements because their
   // friction coefficient is the same in every directions
@@ -700,7 +747,7 @@ void FGLGear::ComputeJacobian(const FGColumnVector3& vWhlContactVec)
 
     LMultiplier[ftDynamic].ForceJacobian = mT * velocityDirection;
     LMultiplier[ftDynamic].Max = 0.;
-    LMultiplier[ftDynamic].Min = -fabs(staticFFactor * dynamicFCoeff * vFn(eZ));
+    LMultiplier[ftDynamic].Min = -fabs(staticFFactor * dynamicFCoeff);
     LMultiplier[ftDynamic].LeverArm = vWhlContactVec;
 
     // The Lagrange multiplier value obtained from the previous iteration is
@@ -708,7 +755,7 @@ void FGLGear::ComputeJacobian(const FGColumnVector3& vWhlContactVec)
     // Gauss-Seidel algorithm. The code just below is to make sure that the
     // initial value is consistent with the current friction coefficient and
     // normal reaction.
-    LMultiplier[ftDynamic].value = Constrain(LMultiplier[ftDynamic].Min, LMultiplier[ftDynamic].value, LMultiplier[ftDynamic].Max);
+    LMultiplier[ftDynamic].value = Constrain(LMultiplier[ftDynamic].Min*normalForce, LMultiplier[ftDynamic].value, LMultiplier[ftDynamic].Max*normalForce);
 
     GroundReactions->RegisterLagrangeMultiplier(&LMultiplier[ftDynamic]);
   }
@@ -727,11 +774,11 @@ void FGLGear::ComputeJacobian(const FGColumnVector3& vWhlContactVec)
 
     switch(eContactType) {
     case ctBOGEY:
-      LMultiplier[ftRoll].Max = fabs(BrakeFCoeff * vFn(eZ));
-      LMultiplier[ftSide].Max = fabs(FCoeff * vFn(eZ));
+      LMultiplier[ftRoll].Max = fabs(BrakeFCoeff);
+      LMultiplier[ftSide].Max = fabs(FCoeff);
       break;
     case ctSTRUCTURE:
-      LMultiplier[ftRoll].Max = fabs(staticFFactor * staticFCoeff * vFn(eZ));
+      LMultiplier[ftRoll].Max = fabs(staticFFactor * staticFCoeff);
       LMultiplier[ftSide].Max = LMultiplier[ftRoll].Max;
       break;
     }
@@ -744,8 +791,8 @@ void FGLGear::ComputeJacobian(const FGColumnVector3& vWhlContactVec)
     // Gauss-Seidel algorithm. The code just below is to make sure that the
     // initial value is consistent with the current friction coefficient and
     // normal reaction.
-    LMultiplier[ftRoll].value = Constrain(LMultiplier[ftRoll].Min, LMultiplier[ftRoll].value, LMultiplier[ftRoll].Max);
-    LMultiplier[ftSide].value = Constrain(LMultiplier[ftSide].Min, LMultiplier[ftSide].value, LMultiplier[ftSide].Max);
+    LMultiplier[ftRoll].value = Constrain(LMultiplier[ftRoll].Min*normalForce, LMultiplier[ftRoll].value, LMultiplier[ftRoll].Max*normalForce);
+    LMultiplier[ftSide].value = Constrain(LMultiplier[ftSide].Min*normalForce, LMultiplier[ftSide].value, LMultiplier[ftSide].Max*normalForce);
 
     GroundReactions->RegisterLagrangeMultiplier(&LMultiplier[ftRoll]);
     GroundReactions->RegisterLagrangeMultiplier(&LMultiplier[ftSide]);
@@ -758,6 +805,8 @@ void FGLGear::ComputeJacobian(const FGColumnVector3& vWhlContactVec)
 // updated accordingly.
 void FGLGear::UpdateForces(void)
 {
+  vFn(eZ) = DamperMultiplier.NormalBase + DamperMultiplier.value;
+
   if (StaticFriction) {
     vFn(eX) = LMultiplier[ftRoll].value;
     vFn(eY) = LMultiplier[ftSide].value;

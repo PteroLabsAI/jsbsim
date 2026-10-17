@@ -228,6 +228,8 @@ void FGAccelerations::SetHoldDown(bool hd)
 // described in Catto's paper has been adapted accordingly.
 // The friction forces are resolved in the body frame relative to the origin
 // (Earth center).
+// The linear strut dampers are solved here too, as soft constraints along the
+// ground normal, so that the friction bounds follow the solved normal force.
 
 void FGAccelerations::CalculateFrictionForces(double dt)
 {
@@ -242,6 +244,7 @@ void FGAccelerations::CalculateFrictionForces(double dt)
 
   vector<double> a(n*n); // Will contain Jac*M^-1*Jac^T
   vector<double> rhs(n);
+  vector<double> diag(n);
 
   // Assemble the linear system of equations
   for (unsigned int i=0; i < n; i++) {
@@ -278,6 +281,7 @@ void FGAccelerations::CalculateFrictionForces(double dt)
   //    a division computation at each iteration of Gauss-Seidel.
   for (unsigned int i=0; i < n; i++) {
     double d = a[i*n+i];
+    diag[i] = d;
     FGColumnVector3 U = multipliers[i]->ForceJacobian;
     FGColumnVector3 r = multipliers[i]->LeverArm;
 
@@ -292,14 +296,23 @@ void FGAccelerations::CalculateFrictionForces(double dt)
     double norm = 0.;
 
     for (unsigned int i=0; i < n; i++) {
-      double lambda0 = multipliers[i]->value;
+      LagrangeMultiplier* m = multipliers[i];
+      double lambda0 = m->value;
       double dlambda = rhs[i];
 
       for (unsigned int j=0; j < n; j++)
         dlambda -= a[i*n+j]*multipliers[j]->value;
 
-      multipliers[i]->value = Constrain(multipliers[i]->Min, lambda0+dlambda, multipliers[i]->Max);
-      dlambda = multipliers[i]->value - lambda0;
+      double lambda = lambda0 + dlambda;
+      // A soft row adds Compliance/dt to its diagonal (Catto, "Soft
+      // Constraints", GDC 2011); the branch follows the sign of the solution.
+      double compliance = m->Compliance[lambda < 0.0];
+      if (compliance > 0.0)
+        lambda *= dt*diag[i] / (dt*diag[i] + compliance);
+
+      double N = m->Normal ? m->Normal->NormalBase + m->Normal->value : 1.0;
+      m->value = Constrain(m->Min*N, lambda, m->Max*N);
+      dlambda = m->value - lambda0;
 
       norm += fabs(dlambda);
     }
