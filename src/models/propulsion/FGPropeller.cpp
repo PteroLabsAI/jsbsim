@@ -64,7 +64,7 @@ FGPropeller::FGPropeller(FGFDMExec* exec, Element* prop_element, int num)
   GearRatio = 1.0;
   CtFactor = CpFactor = 1.0;
   ConstantSpeed = 0;
-  cThrust = cPower = CtMach = CpMach = cThrustRPM = cPowerRPM = 0;
+  cThrust = cPower = CtMach = CpMach = cThrustRPM = cPowerRPM = cInPlaneForce = 0;
 
   if (prop_element->FindElement("ixx"))
     Ixx = max(prop_element->FindElementValueAsNumberConvertTo("ixx", "SLUG*FT2"), 1e-06);
@@ -109,6 +109,8 @@ FGPropeller::FGPropeller(FGFDMExec* exec, Element* prop_element, int num)
         cThrustRPM = new FGTable(PropertyManager, table_element);
       } else if (name == "CP_RPM_FACTOR") {
         cPowerRPM = new FGTable(PropertyManager, table_element);
+      } else if (name == "C_INPLANE_FORCE") {
+        cInPlaneForce = new FGTable(PropertyManager, table_element);
       } else {
         FGXMLLogging log(table_element, LogLevel::ERROR);
         log << "Unknown table type: " << name << " in propeller definition.\n";
@@ -174,6 +176,8 @@ FGPropeller::FGPropeller(FGFDMExec* exec, Element* prop_element, int num)
   PropertyManager->Tie( property_name.c_str(), &PowerRequired );
   property_name = base_property_name + "/propeller-torque-ftlb"; // [ft-lbs]
   PropertyManager->Tie( property_name.c_str(), this, &FGPropeller::GetTorque);
+  property_name = base_property_name + "/propeller-in-plane-force-lbs";
+  PropertyManager->Tie( property_name.c_str(), this, &FGPropeller::GetInPlaneForce);
   property_name = base_property_name + "/propeller-sense";
   PropertyManager->Tie( property_name.c_str(), &Sense );
 
@@ -190,6 +194,7 @@ FGPropeller::~FGPropeller()
   delete CpMach;
   delete cThrustRPM;
   delete cPowerRPM;
+  delete cInPlaneForce;
 
   Debug(1);
 }
@@ -296,6 +301,22 @@ double FGPropeller::Calculate(double EnginePower)
   omega = RPS*2.0*M_PI;
 
   vFn(eX) = Thrust;
+
+  // In-plane force, opposite the air velocity in the disk plane.
+  if (cInPlaneForce) {
+    double Vinplane = localAeroVel.Magnitude(eV, eW);
+    vFn(eY) = vFn(eZ) = 0.0;
+
+    if (Vinplane > 0.0001) {
+      double mu;
+      if (RPS > 0.01) mu = Vinplane / (Diameter * RPS);
+      else            mu = Vinplane / Diameter;
+      double H = cInPlaneForce->GetValue(mu)*RPS*RPS*D4*rho;
+      vFn(eY) = -H*localAeroVel(eV)/Vinplane;
+      vFn(eZ) = -H*localAeroVel(eW)/Vinplane;
+    }
+  }
+
   vTorque(eX) = -Sense*EnginePower / max(0.01, omega);
 
   // The Ixx value and rotation speed given below are for rotation about the
