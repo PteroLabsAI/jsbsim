@@ -55,7 +55,7 @@ FGPropeller::FGPropeller(FGFDMExec* exec, Element* prop_element, int num)
   string name="";
   auto PropertyManager = exec->GetPropertyManager();
 
-  MaxPitch = MinPitch = P_Factor = Advance = MinRPM = MaxRPM = 0.0;
+  MaxPitch = MinPitch = P_Factor = Advance = MinRPM = MaxRPM = Ixx = 0.0;
   Sense = 1; // default clockwise rotation
   ReversePitch = 0.0;
   Reversed = false;
@@ -67,7 +67,9 @@ FGPropeller::FGPropeller(FGFDMExec* exec, Element* prop_element, int num)
   cThrust = cPower = CtMach = CpMach = cThrustRPM = cPowerRPM = 0;
 
   if (prop_element->FindElement("ixx"))
-    Ixx = max(prop_element->FindElementValueAsNumberConvertTo("ixx", "SLUG*FT2"), 1e-06);
+    Ixx = prop_element->FindElementValueAsNumberConvertTo("ixx", "SLUG*FT2");
+  // The RPM update divides by Ixx: only a zero or missing inertia is replaced.
+  if (Ixx <= 0.0) Ixx = 1e-06;
 
   Sense_multiplier = 1.0;
   if (prop_element->HasAttribute("version")
