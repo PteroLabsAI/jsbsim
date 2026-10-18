@@ -109,6 +109,12 @@ CLASS DOCUMENTATION
     </tableData>
   </table>
 
+  <table name="C_INPLANE_FORCE" type="internal">
+    <tableData>
+      {numbers}
+    </tableData>
+  </table>
+
 </propeller>
 ~~~
 
@@ -137,7 +143,7 @@ CLASS DOCUMENTATION
 Two tables are needed. One for coefficient of thrust (Ct) and one for
 coefficient of power (Cp).
 
-Four tables are optional. CT_MACH and CP_MACH apply a factor to Ct and Cp
+Five tables are optional. CT_MACH and CP_MACH apply a factor to Ct and Cp
 based on helical tip Mach. CT_RPM_FACTOR and CP_RPM_FACTOR apply a
 Reynolds-number correction factor indexed by propeller RPM, normalised to
 1.0 at the RPM for which the baseline C_THRUST/C_POWER data were measured.
@@ -152,6 +158,19 @@ for changes in atmospheric properties or flight speed. They should be
 calibrated for the propeller and operating atmosphere in question, and may
 need retuning when used in substantially different conditions, for example
 in the Martian atmosphere.
+
+The optional C_INPLANE_FORCE table gives the non-dimensional force \f$C_H\f$
+that the propeller exerts in the plane of its disk (the H-force, or rotor drag,
+of a rotor; the normal force of a propeller at an angle of attack) versus the
+in-plane advance ratio \f$\mu = V_{inplane}/(n D)\f$, where \f$V_{inplane}\f$
+is the air velocity at the propeller hub in the disk plane, \f$n\f$ the
+propeller speed in revolutions per second and \f$D\f$ its diameter. The force
+\f$H = C_H \rho n^2 D^4\f$ (lbs, with \f$\rho\f$ in slug/ft^3 and \f$D\f$ in
+ft) acts with the thrust, at the propeller location moved by the P-factor if
+any, opposite \f$V_{inplane}\f$ whatever the sense of rotation. The linear rotor drag \f$F = -k_d \Omega V_{inplane}\f$,
+\f$\Omega\f$ in rad/s, is the table \f$C_H = c \mu\f$ with
+\f$c = 2 \pi k_d/(\rho D^3)\f$. Without this table, the propeller exerts no
+in-plane force.
 
 The parameters <sense> and <p_factor> must be specified at the parent level i.e.
 in the <thruster> element. This allows to specify different sense and P factor
@@ -337,6 +356,8 @@ public:
   void   SetInducedVelocity(double Vi) {Vinduced = Vi;}
   /// Get the propeller induced velocity.
   double GetInducedVelocity(void) const {return Vinduced;}
+  /// Retrieves the force in the propeller disk plane, in pounds.
+  double GetInPlaneForce(void) const {return vFn.Magnitude(eY, eZ);}
 
 private:
   int   numBlades;
@@ -374,6 +395,7 @@ private:
   bool   Reversed;     // true, when propeller is reversed
   double Reverse_coef; // 0 - 1 defines AdvancePitch (0=MIN_PITCH 1=REVERSE_PITCH)
   bool   Feathered;    // true, if feather command
+  FGTable *cInPlaneForce;
 };
 }
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
