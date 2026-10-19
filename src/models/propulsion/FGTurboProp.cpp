@@ -472,7 +472,8 @@ void FGTurboProp::SetDefaults(void)
   Reversed = false;
   Cutoff = true;
   phase = tpOff;
-  Eng_ITT_degC = 0.0;
+  StartTime = -1;
+  Eng_ITT_degC = Eng_Temperature = 0.0;
 
   GeneratorPower=true;
   Condition = 0;
