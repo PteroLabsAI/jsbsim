@@ -221,6 +221,7 @@ void FGPropeller::InitDynamics(void)
   RPM = 0.0;
   Pitch = MinPitch;
   Vinduced = 0.0;
+  J = ThrustCoeff = HelicalTipMach = PowerRequired = 0.0;
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
