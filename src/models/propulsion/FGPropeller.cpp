@@ -78,6 +78,11 @@ FGPropeller::FGPropeller(FGFDMExec* exec, Element* prop_element, int num)
 
   if (prop_element->FindElement("diameter"))
     Diameter = max(prop_element->FindElementValueAsNumberConvertTo("diameter", "FT"), 0.001);
+  else {
+    XMLLogException err(prop_element);
+    err << "<diameter> is a mandatory parameter\n";
+    throw err;
+  }
   if (prop_element->FindElement("numblades"))
     numBlades = (int)prop_element->FindElementValueAsNumber("numblades");
   if (prop_element->FindElement("gearratio"))

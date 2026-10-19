@@ -220,7 +220,7 @@ protected:
   double FuelUsedLbs;
   double FuelDensity;
 
-  FGThruster* Thruster;
+  FGThruster* Thruster = nullptr;
 
   std::vector <int> SourceTanks;
 
