@@ -108,6 +108,7 @@ FGBrushLessDCMotor::FGBrushLessDCMotor(FGFDMExec* exec, Element* el, int engine_
   auto pm = exec->GetPropertyManager();
   pm->Tie(base_property_name + "/power-hp", &HP);
   pm->Tie(base_property_name + "/current-amperes", &Current);
+  pm->Tie(base_property_name + "/supply-volts", &MaxVolts);
 
   Debug(0); // Call Debug() routine from constructor if needed
 }

@@ -2,7 +2,8 @@
 #
 # Check that the friction of a brushless DC motor resists its rotation: a motor
 # whose throttle is cut stops its propeller, and while it brakes its friction
-# adds to the braking torque.
+# adds to the braking torque. Check also that the supply voltage can be changed
+# while the simulation runs.
 #
 # Copyright (c) 2026 Alexander Kalmykov
 #
@@ -90,6 +91,41 @@ class TestBrushlessDCMotor(JSBSimTestCase):
             self.assertLess(current, -self.i0)
             braking = self.torque_per_friction_free_current(n)
             self.assertAlmostEqual(braking / driving[n], 1.0, places=9)
+
+    def steady_state(self, throttle, supply_volts):
+        for n in ENGINES:
+            self.fdm[f'propulsion/engine[{n}]/supply-volts'] = supply_volts
+        self.run_steps(throttle, SPIN_UP_STEPS)
+        state = []
+        for n in ENGINES:
+            engine = f'propulsion/engine[{n}]/'
+            rpm = self.fdm[engine + 'propeller-rpm']
+            # The last value is the torque, up to a constant factor.
+            state.append((rpm, self.fdm[engine + 'current-amperes'],
+                          self.fdm[engine + 'power-hp'] / rpm))
+        return state
+
+    def test_supply_volts(self):
+        for n in ENGINES:
+            self.assertEqual(self.fdm[f'propulsion/engine[{n}]/supply-volts'],
+                             self.max_volts)
+
+        # initGrnd starts the F450 285 m above the ground: a ground trim puts
+        # it on the ground, so that the propellers can reach a steady state.
+        self.fdm.do_trim(2)
+
+        full = self.steady_state(SPIN_UP_THROTTLE, self.max_volts)
+        half_supply = self.steady_state(SPIN_UP_THROTTLE, self.max_volts / 2)
+        # The motor sees supply x throttle: half the supply is half the throttle.
+        half_throttle = self.steady_state(SPIN_UP_THROTTLE / 2, self.max_volts)
+        restored = self.steady_state(SPIN_UP_THROTTLE, self.max_volts)
+
+        for n in ENGINES:
+            for a, b, c, d in zip(full[n], half_supply[n], half_throttle[n],
+                                  restored[n]):
+                self.assertLess(b, a)
+                self.assertAlmostEqual(b / c, 1.0, places=7)
+                self.assertAlmostEqual(d / a, 1.0, places=7)
 
 
 RunTest(TestBrushlessDCMotor)

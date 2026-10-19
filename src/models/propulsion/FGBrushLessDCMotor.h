@@ -57,7 +57,11 @@ Kv speed motor constant      [RPM/Volt]
 Rm internal coil resistance  [Ohms]
 I0 no load current           [Amperes]
 additional inputs :
-maxvolts                     nominal voltage  from battery
+maxvolts                     supply voltage when the model loads [Volts]
+
+The voltage across the motor is supply-volts x throttle position, so an ESC
+written as a system that outputs a duty in 0..1 as the throttle position keeps
+the motor at or below the supply.
 
 Input format :
   <brushless_dc_motor>
@@ -66,6 +70,13 @@ Input format :
     <coilresistance units="OHMS">    {number} </coilresistance>
     <noloadcurrent units="AMPERES">  {number} </noloadcurrent>
   </brushless_dc_motor>
+
+Properties (n is the engine number):
+  propulsion/engine[n]/supply-volts     supply voltage [Volts], read/write;
+                                        starts at <maxvolts>, a battery model
+                                        can change it while the sim runs
+  propulsion/engine[n]/current-amperes  motor current [Amperes]
+  propulsion/engine[n]/power-hp         shaft power [HP]
 
   */
 
@@ -95,8 +106,8 @@ public:
 private:
   double ZeroTorqueCurrent; // Zero torque current [A]
   double CoilResistance;    // Internal resistance [Ohm]
-  double PowerWatts;        // Maximum engine power
-  double MaxVolts;          // Max voltage available from battery [V]
+  double PowerWatts;        // Power at the <maxvolts> supply, debug print only
+  double MaxVolts;          // Supply voltage [V], property supply-volts
   double Kv;                // Speed constant of brusless DC motors [RPM/V]
   double HP;                // Engine output, in horsepower
   double Current;           // Current [A]
