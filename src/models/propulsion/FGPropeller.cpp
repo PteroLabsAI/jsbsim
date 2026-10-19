@@ -65,6 +65,7 @@ FGPropeller::FGPropeller(FGFDMExec* exec, Element* prop_element, int num)
   CtFactor = CpFactor = 1.0;
   ConstantSpeed = 0;
   cThrust = cPower = CtMach = CpMach = cThrustRPM = cPowerRPM = cInPlaneForce = 0;
+  cGroundFactor = 0;
 
   if (prop_element->FindElement("ixx"))
     Ixx = prop_element->FindElementValueAsNumberConvertTo("ixx", "SLUG*FT2");
@@ -118,6 +119,8 @@ FGPropeller::FGPropeller(FGFDMExec* exec, Element* prop_element, int num)
         cPowerRPM = new FGTable(PropertyManager, table_element);
       } else if (name == "C_INPLANE_FORCE") {
         cInPlaneForce = new FGTable(PropertyManager, table_element);
+      } else if (name == "CT_GROUND_FACTOR") {
+        cGroundFactor = new FGTable(PropertyManager, table_element);
       } else {
         FGXMLLogging log(table_element, LogLevel::ERROR);
         log << "Unknown table type: " << name << " in propeller definition.\n";
@@ -185,6 +188,8 @@ FGPropeller::FGPropeller(FGFDMExec* exec, Element* prop_element, int num)
   PropertyManager->Tie( property_name.c_str(), this, &FGPropeller::GetTorque);
   property_name = base_property_name + "/propeller-in-plane-force-lbs";
   PropertyManager->Tie( property_name.c_str(), this, &FGPropeller::GetInPlaneForce);
+  property_name = base_property_name + "/propeller-ground-factor";
+  PropertyManager->Tie( property_name.c_str(), this, &FGPropeller::GetGroundFactor);
   property_name = base_property_name + "/propeller-sense";
   PropertyManager->Tie( property_name.c_str(), &Sense );
 
@@ -202,6 +207,7 @@ FGPropeller::~FGPropeller()
   delete cThrustRPM;
   delete cPowerRPM;
   delete cInPlaneForce;
+  delete cGroundFactor;
 
   Debug(1);
 }
@@ -222,6 +228,7 @@ void FGPropeller::InitDynamics(void)
   Pitch = MinPitch;
   Vinduced = 0.0;
   J = ThrustCoeff = HelicalTipMach = PowerRequired = 0.0;
+  GroundFactor = 1.0;
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -274,6 +281,20 @@ double FGPropeller::Calculate(double EnginePower)
 
   // Apply optional Reynolds-number correction indexed by RPM
   if (cThrustRPM) ThrustCoeff *= cThrustRPM->GetValue(RPM);
+
+  // Apply optional ground effect from CT_GROUND_FACTOR table
+  if (cGroundFactor) {
+    FGColumnVector3 vDown = fdmex->GetPropagate()->GetTl2b()*FGColumnVector3(0., 0., 1.);
+    // The slipstream leaves the disk opposite the thrust.
+    double wakeDown = -DotProduct(vDown, mT*FGColumnVector3(1., 0., 0.));
+    if (ThrustCoeff < 0.0) wakeDown = -wakeDown;
+    GroundFactor = 1.0;
+    if (wakeDown > 0.0) {
+      double hubAGL = in.H_agl - DotProduct(vDown, vDXYZ);
+      GroundFactor = cGroundFactor->GetValue(2.0*hubAGL/(wakeDown*Diameter));
+    }
+    ThrustCoeff *= GroundFactor;
+  }
 
   Thrust = ThrustCoeff*RPS*RPS*D4*rho;
 
