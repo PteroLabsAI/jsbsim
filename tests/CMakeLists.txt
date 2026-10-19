@@ -59,6 +59,7 @@ set(PYTHON_TESTS ResetOutputFiles
                  TestPQRdot
                  TestThrusterReset
                  TestPropellerInertia
+                 TestPropellerDiameter
                  TestMassChangeOnGround
                  TestBrushlessDCMotor
                  TestRotorGroundEffect
