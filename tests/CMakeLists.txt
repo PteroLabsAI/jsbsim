@@ -67,7 +67,8 @@ set(PYTHON_TESTS ResetOutputFiles
                  TestRotorGroundEffect
                  TestRotorZeroThrust
                  TestStrutDamping
-                 TestPropellerInPlaneForce)
+                 TestPropellerInPlaneForce
+                 TestPropellerOutputs)
 
 foreach(test ${PYTHON_TESTS})
   add_test(NAME ${test}
