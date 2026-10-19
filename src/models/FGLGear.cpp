@@ -273,7 +273,7 @@ void FGLGear::ResetToIC(void)
   StrutForce      = 0.0;
   StrutPerNormal  = 1.0;
 
-  WheelSlip = 0.0;
+  WheelSlip = FCoeff = 0.0;
 
   // Initialize Lagrange multipliers
   for (int i=0; i < 3; i++) {
