@@ -115,6 +115,12 @@ CLASS DOCUMENTATION
     </tableData>
   </table>
 
+  <table name="CT_GROUND_FACTOR" type="internal">
+    <tableData>
+      {numbers}
+    </tableData>
+  </table>
+
 </propeller>
 ~~~
 
@@ -143,7 +149,7 @@ CLASS DOCUMENTATION
 Two tables are needed. One for coefficient of thrust (Ct) and one for
 coefficient of power (Cp).
 
-Five tables are optional. CT_MACH and CP_MACH apply a factor to Ct and Cp
+Six tables are optional. CT_MACH and CP_MACH apply a factor to Ct and Cp
 based on helical tip Mach. CT_RPM_FACTOR and CP_RPM_FACTOR apply a
 Reynolds-number correction factor indexed by propeller RPM, normalised to
 1.0 at the RPM for which the baseline C_THRUST/C_POWER data were measured.
@@ -171,6 +177,34 @@ any, opposite \f$V_{inplane}\f$ whatever the sense of rotation. The linear rotor
 \f$\Omega\f$ in rad/s, is the table \f$C_H = c \mu\f$ with
 \f$c = 2 \pi k_d/(\rho D^3)\f$. Without this table, the propeller exerts no
 in-plane force.
+
+The optional CT_GROUND_FACTOR table gives the ground effect: a factor on Ct
+versus \f$z/R\f$, where \f$R\f$ is the propeller radius and \f$z\f$ the
+distance from the hub to the ground along the slipstream, which leaves the
+disk opposite the thrust. With \f$h\f$ the height of the hub above the ground
+and \f$\gamma\f$ the angle between the slipstream and the local vertical,
+\f$z = h/\cos\gamma\f$, so the effect fades out as a lift propeller tilts
+towards a horizontal axis; a slipstream that does not go down gets a factor
+of 1. The ground is the horizontal plane at the terrain elevation below the
+CG. Keys off the table take its end values: the last row must give 1 and the
+first one sets the effect with the propeller on the ground. The
+Cheeseman-Bennett relation \f$T/T_\infty = 1/(1-(R/4z)^2)\f$, which diverges
+at \f$z/R = 0.25\f$, reads
+~~~{.xml}
+<table name="CT_GROUND_FACTOR" type="internal">
+  <tableData>
+    0.5  1.333
+    1.0  1.067
+    2.0  1.016
+    4.0  1.004
+    8.0  1.0
+  </tableData>
+</table>
+~~~
+and measured multirotor data can replace it. The table scales the thrust, and
+the induced velocity that momentum theory derives from it, but not C_POWER:
+the drop of the induced power in ground effect is not modelled. Without this
+table, the propeller has no ground effect.
 
 The parameters <sense> and <p_factor> must be specified at the parent level i.e.
 in the <thruster> element. This allows to specify different sense and P factor
@@ -358,6 +392,8 @@ public:
   double GetInducedVelocity(void) const {return Vinduced;}
   /// Retrieves the force in the propeller disk plane, in pounds.
   double GetInPlaneForce(void) const {return vFn.Magnitude(eY, eZ);}
+  /// Retrieves the ground effect factor on the thrust coefficient.
+  double GetGroundFactor(void) const {return GroundFactor;}
 
 private:
   int   numBlades;
@@ -396,6 +432,8 @@ private:
   double Reverse_coef; // 0 - 1 defines AdvancePitch (0=MIN_PITCH 1=REVERSE_PITCH)
   bool   Feathered;    // true, if feather command
   FGTable *cInPlaneForce;
+  FGTable *cGroundFactor;
+  double GroundFactor;
 };
 }
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
