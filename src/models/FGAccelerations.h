@@ -354,6 +354,9 @@ public:
     FGColumnVector3 TerrainVelocity;
     /// Terrain angular velocities with respect to the local frame (expressed in the ECEF frame).
     FGColumnVector3 TerrainAngularVel;
+    /// FGPropagate::eIntegrateType of the body rates.
+    int RotationalRateIntegrator;
+    int TranslationalRateIntegrator;
     /// Time step
     double DeltaT;
     /// Body mass
@@ -369,6 +372,8 @@ private:
   FGColumnVector3 vBodyAccel;
   FGColumnVector3 vFrictionForces;
   FGColumnVector3 vFrictionMoments;
+  /// The rate derivatives of the last steps, newest first, as the multistep integrators use them.
+  FGColumnVector3 vPQRdotPast[3], vUVWdotPast[3];
 
   bool gravTorque;
 
@@ -376,6 +381,8 @@ private:
   void CalculateUVWdot(void);
 
   void CalculateFrictionForces(double dt);
+  static FGColumnVector3 RateToResist(const FGColumnVector3& Dot, const FGColumnVector3& Relative,
+                                      const FGColumnVector3 Past[3], double dt, int integrator);
 
   void bind(void);
   void Debug(int from) override;

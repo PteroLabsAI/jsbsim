@@ -114,8 +114,17 @@ bool FGAccelerations::Run(bool Holding)
   CalculatePQRdot();   // Angular rate derivative
   CalculateUVWdot();   // Translational rate derivative
 
+  const double dt = in.DeltaT * rate;
   if (!FDMExec->GetHoldDown())
-    CalculateFrictionForces(in.DeltaT * rate);  // Update rate derivatives with friction forces
+    CalculateFrictionForces(dt);  // Update rate derivatives with friction forces
+
+  // Kept as FGPropagate keeps its own: restarted when integration is suspended (RunIC, trim), pushed otherwise.
+  for (int i = 2; i > 0; --i) {
+    vPQRdotPast[i] = dt > 0. ? vPQRdotPast[i-1] : vPQRdot;
+    vUVWdotPast[i] = dt > 0. ? vUVWdotPast[i-1] : vUVWdot;
+  }
+  vPQRdotPast[0] = vPQRdot;
+  vUVWdotPast[0] = vUVWdot;
 
   Debug(2);
   return false;
@@ -231,6 +240,30 @@ void FGAccelerations::SetHoldDown(bool hd)
 // The linear strut dampers are solved here too, as soft constraints along the
 // ground normal, so that the friction bounds follow the solved normal force.
 
+// The acceleration the friction forces resist: the one that takes Relative to zero in the next step when the
+// integrator adds it, together with its own past derivatives Past, to the rate (Adams-Bashforth coefficients).
+
+FGColumnVector3 FGAccelerations::RateToResist(const FGColumnVector3& Dot, const FGColumnVector3& Relative,
+                                              const FGColumnVector3 Past[3], double dt, int integrator)
+{
+  if (dt <= 0.) return Dot;
+
+  switch (integrator) {
+  case FGPropagate::eAdamsBashforth4:
+    return Dot + (-59.*Past[0] + 37.*Past[1] - 9.*Past[2])/55. + 24.*Relative/(55.*dt);
+  case FGPropagate::eAdamsBashforth3:
+    return Dot + (-16.*Past[0] + 5.*Past[1])/23. + 12.*Relative/(23.*dt);
+  case FGPropagate::eAdamsBashforth2:
+    return Dot - Past[0]/3. + 2.*Relative/(3.*dt);
+  case FGPropagate::eTrapezoidal:
+    return Dot + Past[0] + 2.*Relative/dt;
+  default:
+    return Dot + Relative/dt;
+  }
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 void FGAccelerations::CalculateFrictionForces(double dt)
 {
   vector<LagrangeMultiplier*>& multipliers = *in.MultipliersList;
@@ -265,15 +298,11 @@ void FGAccelerations::CalculateFrictionForces(double dt)
 
   // Assemble the RHS member
 
-  // Translation
-  FGColumnVector3 vdot = vUVWdot;
-  if (dt > 0.) // Zeroes out the relative movement between the aircraft and the ground
-    vdot += (in.vUVW - in.Tec2b * in.TerrainVelocity) / dt;
-
-  // Rotation
-  FGColumnVector3 wdot = vPQRdot;
-  if (dt > 0.) // Zeroes out the relative movement between the aircraft and the ground
-    wdot += (in.vPQR - in.Tec2b * in.TerrainAngularVel) / dt;
+  // Zeroes out the relative movement between the aircraft and the ground in one step of the scheme that integrates it
+  FGColumnVector3 vdot = RateToResist(vUVWdot, in.vUVW - in.Tec2b * in.TerrainVelocity, vUVWdotPast, dt,
+                                      in.TranslationalRateIntegrator);
+  FGColumnVector3 wdot = RateToResist(vPQRdot, in.vPQR - in.Tec2b * in.TerrainAngularVel, vPQRdotPast, dt,
+                                      in.RotationalRateIntegrator);
 
   // Prepare the linear system for the Gauss-Seidel algorithm :
   // 1. Compute the right hand side member 'rhs'
