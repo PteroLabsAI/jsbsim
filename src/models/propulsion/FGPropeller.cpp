@@ -364,6 +364,8 @@ double FGPropeller::Calculate(double EnginePower)
   // Transform Torque and momentum first, as PQR is used in this
   // equation and cannot be transformed itself.
   vMn = in.PQRi*(mT*vH) + mT*vTorque;
+  // The momentum whose gyroscopic moment is vMn's w x (mT*vH).
+  vAngularMomentum = -1.0*(mT*vH);
 
   return Thrust; // return thrust in pounds
 }

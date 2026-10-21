@@ -439,6 +439,7 @@ void FGFDMExec::LoadInputs(unsigned int idx)
     Propagate->in.vUVWidot     = Accelerations->GetUVWidot();
     Propagate->in.J            = MassBalance->GetJ();
     Propagate->in.Jinv         = MassBalance->GetJinv();
+    Propagate->in.vAngularMomentum = Propulsion->GetAngularMomentum();
     Propagate->in.DeltaT       = dT;
     break;
   case eInput:

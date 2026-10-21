@@ -59,6 +59,7 @@ INCLUDES
 #include "models/propulsion/FGTurboProp.h"
 #include "models/propulsion/FGTank.h"
 #include "models/propulsion/FGBrushLessDCMotor.h"
+#include "models/propulsion/FGThruster.h"
 #include "models/FGFCS.h"
 
 
@@ -100,6 +101,7 @@ bool FGPropulsion::InitModel(void)
 
   vForces.InitMatrix();
   vMoments.InitMatrix();
+  vAngularMomentum.InitMatrix();
 
   for (auto& tank: Tanks) tank->ResetToIC();
   TotalFuelQuantity = 0.0;
@@ -122,12 +124,14 @@ bool FGPropulsion::Run(bool Holding)
 
   vForces.InitMatrix();
   vMoments.InitMatrix();
+  vAngularMomentum.InitMatrix();
 
   for (auto& engine: Engines) {
     engine->Calculate();
     ConsumeFuel(engine.get());
     vForces  += engine->GetBodyForces();  // sum body frame forces
     vMoments += engine->GetMoments();     // sum body frame moments
+    vAngularMomentum += engine->GetThruster()->GetAngularMomentum();
   }
 
   TotalFuelQuantity = 0.0;
@@ -272,6 +276,7 @@ bool FGPropulsion::GetSteadyState(void)
 
   vForces.InitMatrix();
   vMoments.InitMatrix();
+  vAngularMomentum.InitMatrix();
 
   if (!FGModel::Run(false)) {
     FDMExec->SetTrimStatus(true);
@@ -299,6 +304,7 @@ bool FGPropulsion::GetSteadyState(void)
       }
       vForces  += engine->GetBodyForces();  // sum body frame forces
       vMoments += engine->GetMoments();     // sum body frame moments
+      vAngularMomentum += engine->GetThruster()->GetAngularMomentum();
     }
 
     FDMExec->SetTrimStatus(TrimMode);
@@ -849,6 +855,9 @@ void FGPropulsion::bind(void)
   PropertyManager->Tie("moments/l-prop-lbsft", this, eX, &FGPropulsion::GetMoments);
   PropertyManager->Tie("moments/m-prop-lbsft", this, eY, &FGPropulsion::GetMoments);
   PropertyManager->Tie("moments/n-prop-lbsft", this, eZ, &FGPropulsion::GetMoments);
+  PropertyManager->Tie("propulsion/angular-momentum-x-slugs_ft2_sec", this, eX, &FGPropulsion::GetAngularMomentum);
+  PropertyManager->Tie("propulsion/angular-momentum-y-slugs_ft2_sec", this, eY, &FGPropulsion::GetAngularMomentum);
+  PropertyManager->Tie("propulsion/angular-momentum-z-slugs_ft2_sec", this, eZ, &FGPropulsion::GetAngularMomentum);
   PropertyManager->Tie("propulsion/total-fuel-lbs", &TotalFuelQuantity);
   PropertyManager->Tie("propulsion/total-oxidizer-lbs", &TotalOxidizerQuantity);
   PropertyManager->Tie("propulsion/refuel", &refuel);
