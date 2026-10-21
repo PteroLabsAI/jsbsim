@@ -161,6 +161,9 @@ public:
   double GetForces(int n) const { return vForces(n);}
   const FGColumnVector3& GetMoments(void) const {return vMoments;}
   double GetMoments(int n) const {return vMoments(n);}
+  /// Sum of the thrusters' angular momenta in body axes, slug*ft2/s.
+  const FGColumnVector3& GetAngularMomentum(void) const {return vAngularMomentum;}
+  double GetAngularMomentum(int n) const {return vAngularMomentum(n);}
 
   double Transfer(int source, int target, double amount);
   void DoRefuel(double time_slice);
@@ -190,6 +193,7 @@ private:
   int ActiveEngine;
   FGColumnVector3 vForces;
   FGColumnVector3 vMoments;
+  FGColumnVector3 vAngularMomentum;
   FGColumnVector3 vTankXYZ;
   FGColumnVector3 vXYZtank_arm;
   FGMatrix33 tankJ;

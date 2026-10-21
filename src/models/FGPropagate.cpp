@@ -362,11 +362,12 @@ constexpr double RoundingTolerance = 1E-8;
 static FGMatrix33 Skew(const FGColumnVector3& v)
 { return FGMatrix33(0.0, -v(3), v(2), v(3), 0.0, -v(1), -v(2), v(1), 0.0); }
 
-// The rates after h from J*(w2-w1) = h*(M - m x (J*m)), m = (w1+w2)/2, solved
-// by Newton in parts that each turn the body at most MaxTurnPerPartRad at the
-// spin given.
-static FGColumnVector3 MidpointRates(const FGMatrix33& J, const FGColumnVector3& M,
-                                     FGColumnVector3 w, double h, double spin)
+// The rates after h from J*(w2-w1) = h*(M - m x (J*m + H)), m = (w1+w2)/2,
+// solved by Newton in parts that each turn the body at most MaxTurnPerPartRad at
+// the spin given.
+static FGColumnVector3 MidpointRates(const FGMatrix33& J, const FGColumnVector3& H,
+                                     const FGColumnVector3& M, FGColumnVector3 w,
+                                     double h, double spin)
 {
   const int parts = max(1, static_cast<int>(ceil(h * spin / MaxTurnPerPartRad)));
   const double dt = h / parts;
@@ -375,8 +376,8 @@ static FGColumnVector3 MidpointRates(const FGMatrix33& J, const FGColumnVector3&
     double lastSize = 0.0;
     for (int iteration = 0;; ++iteration) {
       const FGColumnVector3 m = 0.5 * (w + w2);
-      const FGColumnVector3 Jm = J * m;
-      const FGMatrix33 Jacobian = J + 0.5 * dt * (Skew(m) * J - Skew(Jm));
+      const FGColumnVector3 L = J * m + H;
+      const FGMatrix33 Jacobian = J + 0.5 * dt * (Skew(m) * J - Skew(L));
       if (iteration == MaxNewtonIterations || !Jacobian.Invertible()) {
         LogException err;
         err << "FGPropagate: no midpoint step for the body rates at "
@@ -384,12 +385,12 @@ static FGColumnVector3 MidpointRates(const FGMatrix33& J, const FGColumnVector3&
             << (Jacobian.Invertible() ? "Newton did not converge" : "singular Jacobian");
         throw err;
       }
-      const FGColumnVector3 step = Jacobian.Inverse() * (J * (w2 - w) + dt * (m * Jm - M));
+      const FGColumnVector3 step = Jacobian.Inverse() * (J * (w2 - w) + dt * (m * L - M));
       w2 -= step;
       // Rounding scales with the larger rates, wherever the moment takes them.
       const double scale = max(w.Magnitude(), w2.Magnitude());
       const double size = step.Magnitude();
-      // A correction that stops shrinking has met the rounding of m x (J*m).
+      // A correction that stops shrinking has met the rounding of m x L.
       if (size <= NewtonTolerance * scale
           || (iteration > 0 && size >= lastSize && size <= RoundingTolerance * scale))
         break;
@@ -401,9 +402,10 @@ static FGColumnVector3 MidpointRates(const FGMatrix33& J, const FGColumnVector3&
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// The implicit midpoint rule keeps the kinetic energy and |J*w| of a free body
-// whatever the step (see ref [9], section IV.2): explicit Euler adds energy to a
-// tumbling body. The moment stays explicit.
+// The implicit midpoint rule keeps the kinetic energy and |J*w + H| of a free
+// body carrying rotors of momentum H whatever the step (see ref [9], section
+// IV.2): explicit Euler adds energy to a tumbling body. The moment stays
+// explicit.
 
 void FGPropagate::IntegrateMidpoint(double dt)
 {
@@ -411,15 +413,17 @@ void FGPropagate::IntegrateMidpoint(double dt)
   VState.dqPQRidot.pop_back();
 
   const FGColumnVector3 w = VState.vPQRi;
-  // The moment the derivative was computed from, friction included. Not
-  // FGAccelerations::GetMoments(): a hold-down overrides the derivative only.
-  const FGColumnVector3 Moment = in.J * in.vPQRidot + w * (in.J * w);
+  const FGColumnVector3& H = in.vAngularMomentum;
+  // The moment the derivative was computed from, friction included, less the
+  // gyroscopic moment of the rotors, H x w, which the step takes implicitly.
+  // Not FGAccelerations::GetMoments(): a hold-down overrides the derivative only.
+  const FGColumnVector3 Moment = in.J * in.vPQRidot + w * (in.J * w + H);
   const double spin = w.Magnitude();
   // A strike can spin a resting body up within the step.
   const double pushedSpin = (w + dt * (in.Jinv * Moment)).Magnitude();
   // Diverging or NaN rates or moments fail the test and are stepped by Euler.
   if (dt * spin <= MaxTurnPerStepRad && dt * pushedSpin <= MaxTurnPerStepRad)
-    VState.vPQRi = MidpointRates(in.J, Moment, w, dt, max(spin, pushedSpin));
+    VState.vPQRi = MidpointRates(in.J, H, Moment, w, dt, max(spin, pushedSpin));
   else
     VState.vPQRi += dt * in.vPQRidot;
 }

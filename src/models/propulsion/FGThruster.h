@@ -101,6 +101,8 @@ public:
   virtual double GetRPM(void) const { return 0.0; };
   virtual double GetEngineRPM(void) const { return 0.0; };
   double GetGearRatio(void) {return GearRatio; }
+  /// Angular momentum of the spinning parts in body axes, slug*ft2/s.
+  const FGColumnVector3& GetAngularMomentum(void) const {return vAngularMomentum;}
   virtual std::string GetThrusterLabels(int id, const std::string& delimeter);
   virtual std::string GetThrusterValues(int id, const std::string& delimeter);
 
@@ -129,6 +131,7 @@ protected:
   double ThrustCoeff;
   double ReverserAngle;
   int EngineNum;
+  FGColumnVector3 vAngularMomentum;
   virtual void Debug(int from);
 };
 }

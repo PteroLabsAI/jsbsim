@@ -620,6 +620,7 @@ public:
     FGColumnVector3 vOmegaPlanet;
     FGMatrix33 J;
     FGMatrix33 Jinv;
+    FGColumnVector3 vAngularMomentum; // of the thrusters, body axes
     double SemiMajor;
     double SemiMinor;
     double GM; // Gravitational parameter
