@@ -230,6 +230,8 @@ void FGAccelerations::SetHoldDown(bool hd)
 // (Earth center).
 // The linear strut dampers are solved here too, as soft constraints along the
 // ground normal, so that the friction bounds follow the solved normal force.
+// A row may push another body besides the aircraft (LagrangeMultiplier::Other),
+// which gives to it too, and hold the contact at that body's face speed.
 
 void FGAccelerations::CalculateFrictionForces(double dt)
 {
@@ -260,6 +262,9 @@ void FGAccelerations::CalculateFrictionForces(double dt)
       U = multipliers[j]->ForceJacobian;
       r = multipliers[j]->LeverArm;
       a[i*n+j] = DotProduct(U, v1 + v2*r);
+      if (multipliers[i]->Other && multipliers[i]->Other == multipliers[j]->Other)
+        for (unsigned int k=0; k < 6; k++)
+          a[i*n+j] += multipliers[i]->Give[k]*multipliers[j]->Give[k];
     }
   }
 
@@ -286,6 +291,8 @@ void FGAccelerations::CalculateFrictionForces(double dt)
     FGColumnVector3 r = multipliers[i]->LeverArm;
 
     rhs[i] = -DotProduct(U, vdot + wdot*r)/d;
+    if (dt > 0.) // Holds the contact at the speed of the face it pushes
+      rhs[i] += multipliers[i]->Bias/(dt*d);
 
     for (unsigned int j=0; j < n; j++)
       a[i*n+j] /= d;
