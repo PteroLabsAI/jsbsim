@@ -34,6 +34,8 @@ SENTRY
 INCLUDES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
+#include <cstdint>
+
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 FORWARD DECLARATIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
@@ -61,6 +63,16 @@ struct LagrangeMultiplier {
   // Normal->NormalBase + Normal->value, which is solved in the same pass.
   const LagrangeMultiplier* Normal = nullptr;
   double NormalBase = 0.0;
+  // The body the row pushes besides the aircraft, none (the ground) if 0. Rows
+  // on one body move it together by the dot products of their Give: its
+  // mobility along each in its mass-weighted coordinates, u/sqrt(m) and
+  // (r x u)/sqrt(I) about its centre of mass in its principal axes,
+  // 1/sqrt(slug).
+  std::uint64_t Other = 0;
+  double Give[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+  // The contact's speed along ForceJacobian that the row holds, over the
+  // terrain's under the CG, ft/s: the speed of the face it pushes.
+  double Bias = 0.0;
 };
 
 } // namespace
