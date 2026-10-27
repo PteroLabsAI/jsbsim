@@ -20,6 +20,7 @@ set(UNIT_TESTS FGColumnVector3Test
                FGAtmosphereTest
                FGAuxiliaryTest
                FGExternalReactionsTest
+               FGAccelerationsTest
                FGMSISTest
                FGLogTest
                FGTrimTest)
