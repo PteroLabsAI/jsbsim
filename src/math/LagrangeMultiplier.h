@@ -70,6 +70,10 @@ struct LagrangeMultiplier {
   // 1/sqrt(slug).
   std::uint64_t Other = 0;
   double Give[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+  // A second body the row pushes, as between two bodies it holds apart, none
+  // if 0, and its mobility along the row as Give.
+  std::uint64_t Other2 = 0;
+  double Give2[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
   // The contact's speed along ForceJacobian that the row holds, over the
   // terrain's under the CG, ft/s: the speed of the face it pushes.
   double Bias = 0.0;
