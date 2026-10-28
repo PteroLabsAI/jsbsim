@@ -603,6 +603,8 @@ void FGFDMExec::LoadInputs(unsigned int idx)
     Accelerations->in.MultipliersList = GroundReactions->GetMultipliersList();
     Accelerations->in.TerrainVelocity = Propagate->GetTerrainVelocity();
     Accelerations->in.TerrainAngularVel = Propagate->GetTerrainAngularVelocity();
+    Accelerations->in.RotationalRateIntegrator = Propagate->GetRotationalRateIntegrator();
+    Accelerations->in.TranslationalRateIntegrator = Propagate->GetTranslationalRateIntegrator();
     break;
   default:
     break;
