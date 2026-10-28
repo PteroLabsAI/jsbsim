@@ -354,6 +354,9 @@ public:
     FGColumnVector3 TerrainVelocity;
     /// Terrain angular velocities with respect to the local frame (expressed in the ECEF frame).
     FGColumnVector3 TerrainAngularVel;
+    /// FGPropagate::eIntegrateType of the body rates, whose steps the friction forces anticipate.
+    int RotationalRateIntegrator = 0;
+    int TranslationalRateIntegrator = 0;
     /// Time step
     double DeltaT;
     /// Body mass
@@ -369,6 +372,8 @@ private:
   FGColumnVector3 vBodyAccel;
   FGColumnVector3 vFrictionForces;
   FGColumnVector3 vFrictionMoments;
+  /// The inertial rate derivatives of the last steps, newest first, as the multistep schemes take them.
+  FGColumnVector3 vUVWidotPast[3], vPQRidotPast[3];
 
   bool gravTorque;
 

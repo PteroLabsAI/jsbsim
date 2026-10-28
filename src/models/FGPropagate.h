@@ -230,6 +230,9 @@ public:
       @return The body frame inertial angular rates in rad/sec.
   */
   const FGColumnVector3& GetPQRi(void) const {return VState.vPQRi;}
+  /// The schemes the body rates are integrated with, whose steps the friction forces anticipate.
+  int GetRotationalRateIntegrator(void) const { return integrator_rotational_rate; }
+  int GetTranslationalRateIntegrator(void) const { return integrator_translational_rate; }
 
   /** Retrieves the time derivative of the body orientation quaternion.
       Retrieves the time derivative of the body orientation quaternion based on
