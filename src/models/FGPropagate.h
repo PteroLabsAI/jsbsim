@@ -555,6 +555,11 @@ public:
   void SetEarthPositionAngle(double EPA) {epa = EPA;}
 
   void SetInertialOrientation(const FGQuaternion& Qi);
+  /** Moves the position and the attitude by a step at vUVWi, inertial frame
+      ft/s, and vPQRi, body rad/s, the velocity left as it is: a split impulse
+      (FGAccelerations::GetPseudoUVWi), taken in the step that solved it so
+      the state it ends at shows it. */
+  void Displace(const FGColumnVector3& vUVWi, const FGColumnVector3& vPQRi);
   void SetInertialVelocity(const FGColumnVector3& Vi);
   void SetInertialRates(const FGColumnVector3& vRates);
 
@@ -637,10 +642,6 @@ public:
     FGMatrix33 J;
     FGMatrix33 Jinv;
     FGColumnVector3 vAngularMomentum; // of the thrusters, body axes
-    // Taken by the position and the attitude alone this step, inertial frame
-    // ft/s and body rad/s (FGAccelerations::GetPseudoUVWi).
-    FGColumnVector3 vPseudoUVWi;
-    FGColumnVector3 vPseudoPQRi;
     double SemiMajor;
     double SemiMinor;
     double GM; // Gravitational parameter
@@ -709,6 +710,8 @@ private:
 
   void UpdateLocationMatrices(void);
   void UpdateBodyMatrices(void);
+  /** What the inertial position and attitude make of the rest of the state. */
+  void UpdateFromPositionAndAttitude(void);
   void UpdateVehicleState(void);
   void ComputeOrbitalParameters(void);
 
