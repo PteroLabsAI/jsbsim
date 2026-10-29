@@ -430,6 +430,18 @@ void FGPropagate::IntegrateMidpoint(double dt)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+FGPropagate::StepWeights FGPropagate::WeightsOf(int integrator)
+{
+  switch (integrator) {
+  case eAdamsBashforth2: return {1.5, {-0.5, 0., 0.}};
+  case eAdamsBashforth3: return {23./12., {-16./12., 5./12., 0.}};
+  case eAdamsBashforth4: return {55./24., {-59./24., 37./24., -9./24.}};
+  default:               return {1., {0., 0., 0.}};
+  }
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 void FGPropagate::Integrate( FGColumnVector3& Integrand,
                              FGColumnVector3& Val,
                              deque <FGColumnVector3>& ValDot,
