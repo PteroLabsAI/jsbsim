@@ -234,6 +234,19 @@ public:
   int GetRotationalRateIntegrator(void) const { return integrator_rotational_rate; }
   int GetTranslationalRateIntegrator(void) const { return integrator_translational_rate; }
 
+  /** How a step of a rate's scheme takes up its derivatives: this step's at
+      Weight, those of the steps before, newest first, at Past. What a force
+      solved for this step moves the rate by, and what the past ones still add:
+      the friction rows aim at it (FGAccelerations::CalculateFrictionForces).
+      Any other scheme as Euler's: AB5 is not taken up yet, a frozen rate meets
+      no force, and the trapezoidal one, 0.5*(this step's + the last's), aimed
+      at exactly, pushes alternately twice as hard and not at all for ever. */
+  struct StepWeights {
+    double Weight;
+    double Past[3];
+  };
+  static StepWeights WeightsOf(int integrator);
+
   /** Retrieves the time derivative of the body orientation quaternion.
       Retrieves the time derivative of the body orientation quaternion based on
       the rate of change of the orientation between the body and the ECI frame.
