@@ -250,26 +250,6 @@ void FGAccelerations::SetHoldDown(bool hd)
 // back the next step against itself. The other bodies are moved by Euler's.
 
 namespace {
-// How a step of an FGPropagate scheme takes up the rate derivatives: this
-// step's at Weight, those of the steps before, newest first, at Past. Any
-// other scheme as Euler's: AB5 is not taken up yet, a frozen rate meets no
-// friction, and the trapezoidal one, 0.5*(this step's + the last's), aimed at
-// exactly, pushes alternately twice as hard and not at all for ever.
-struct FrictionScheme {
-  double Weight;
-  double Past[3];
-};
-
-FrictionScheme FrictionSchemeOf(int integrator)
-{
-  switch (integrator) {
-  case FGPropagate::eAdamsBashforth2: return {1.5, {-0.5, 0., 0.}};
-  case FGPropagate::eAdamsBashforth3: return {23./12., {-16./12., 5./12., 0.}};
-  case FGPropagate::eAdamsBashforth4: return {55./24., {-59./24., 37./24., -9./24.}};
-  default:                            return {1., {0., 0., 0.}};
-  }
-}
-
 // How the bodies rows i and j both push move them together: the dot products
 // of their Give on each such body.
 double SharedGive(const LagrangeMultiplier& i, const LagrangeMultiplier& j)
@@ -304,8 +284,8 @@ void FGAccelerations::CalculateFrictionForces(double dt)
   vector<double> diag(n);
 
   // With no step, as in a trim, the forces only balance the derivatives.
-  const FrictionScheme translation = FrictionSchemeOf(dt > 0. ? in.TranslationalRateIntegrator : 0);
-  const FrictionScheme rotation = FrictionSchemeOf(dt > 0. ? in.RotationalRateIntegrator : 0);
+  const FGPropagate::StepWeights translation = FGPropagate::WeightsOf(dt > 0. ? in.TranslationalRateIntegrator : 0);
+  const FGPropagate::StepWeights rotation = FGPropagate::WeightsOf(dt > 0. ? in.RotationalRateIntegrator : 0);
 
   // Assemble the linear system of equations
   for (unsigned int i=0; i < n; i++) {
