@@ -77,6 +77,12 @@ struct LagrangeMultiplier {
   // The contact's speed along ForceJacobian that the row holds, over the
   // terrain's under the CG, ft/s: the speed of the face it pushes.
   double Bias = 0.0;
+  // A row that only pushes, without bound (Min 0, Max the largest double, no
+  // Normal), as a hull's does but a gear's not: how fast its contact is to come
+  // out along ForceJacobian in position alone, ft/s, solved apart from Bias
+  // (FGAccelerations::GetPseudoUVWi): a depth so worked off leaves no speed the
+  // contact keeps once it parts.
+  double PositionBias = 0.0;
 };
 
 } // namespace
