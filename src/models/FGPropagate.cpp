@@ -232,6 +232,10 @@ bool FGPropagate::Run(bool Holding)
       Integrate(VState.vPQRi,           in.vPQRidot,          VState.dqPQRidot,          dt, integrator_rotational_rate);
     Integrate(VState.vInertialPosition, VState.vInertialVelocity, VState.dqInertialVelocity, dt, integrator_translational_position);
     Integrate(VState.vInertialVelocity, in.vUVWidot,          VState.dqUVWidot,          dt, integrator_translational_rate);
+    // The contacts' split impulse: out of their faces in position alone.
+    VState.vInertialPosition += dt * in.vPseudoUVWi;
+    VState.qAttitudeECI += dt * VState.qAttitudeECI.GetQDot(in.vPseudoPQRi);
+    VState.qAttitudeECI.Normalize();
   }
 
   // CAUTION : the order of the operations below is very important to get

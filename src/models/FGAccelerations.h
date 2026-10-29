@@ -291,6 +291,12 @@ public:
   double GetGroundForces(int idx) const { return in.GroundForce(idx) + vFrictionForces(idx); }
   FGColumnVector3 GetGroundForces(void) const { return in.GroundForce + vFrictionForces; }
 
+  /** The velocity, inertial frame, ft/s, and the body rates, rad/s, that the
+      rows' PositionBias asks over the next step, which only its position and
+      attitude take (split impulse, Catto 2006): nought with none asked. */
+  const FGColumnVector3& GetPseudoUVWi(void) const { return vPseudoUVWi; }
+  const FGColumnVector3& GetPseudoPQRi(void) const { return vPseudoPQRi; }
+
   /** Retrieves the weight applied on the body.
       Retrieves the weight applied on the body i.e. the force that results from
       the gravity applied to the body mass.
@@ -375,6 +381,7 @@ private:
   FGColumnVector3 vBodyAccel;
   FGColumnVector3 vFrictionForces;
   FGColumnVector3 vFrictionMoments;
+  FGColumnVector3 vPseudoUVWi, vPseudoPQRi;
 
   bool gravTorque;
 
@@ -382,6 +389,7 @@ private:
   void CalculateUVWdot(void);
 
   void CalculateFrictionForces(double dt);
+  void SolvePositionBias(double dt);
 
   void bind(void);
   void Debug(int from) override;
