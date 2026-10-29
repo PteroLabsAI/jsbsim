@@ -53,6 +53,7 @@ COMMENTS, REFERENCES,  and NOTES
 INCLUDES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
+#include <limits>
 #include "FGAccelerations.h"
 #include "FGFDMExec.h"
 #include "models/FGPropagate.h"
@@ -276,6 +277,8 @@ void FGAccelerations::CalculateFrictionForces(double dt)
   vFrictionForces.InitMatrix();
   vFrictionMoments.InitMatrix();
   frictionResidual = 0.;
+  vPseudoUVWi.InitMatrix();
+  vPseudoPQRi.InitMatrix();
 
   // If no gears are in contact with the ground then return
   if (!n) return;
@@ -402,6 +405,64 @@ void FGAccelerations::CalculateFrictionForces(double dt)
   vUVWidot += in.Tb2i * accel;
   vPQRdot += omegadot;
   vPQRidot += omegadot;
+
+  if (dt > 0.) SolvePositionBias(dt);
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+// The rows' PositionBias solved alone, from rest, on the rows that only push:
+// those asked come out, the others are not pushed into. A depth worked off by
+// the rows' own speed was kept once they parted: a rod left a wall at 0.29 of
+// the speed it met it.
+void FGAccelerations::SolvePositionBias(double dt)
+{
+  vector<const LagrangeMultiplier*> rows;
+  bool asked = false;
+  for (const LagrangeMultiplier* m : *in.MultipliersList) {
+    if (m->Normal || m->Min != 0. || m->Max != numeric_limits<double>::max() || m->ForceJacobian.Magnitude() == 0.) continue;
+    rows.push_back(m);
+    asked = asked || m->PositionBias > 0.;
+  }
+  if (!asked) return;
+
+  const size_t n = rows.size();
+  vector<double> a(n*n), rhs(n), lambda(n, 0.);
+  for (size_t i=0; i < n; i++) {
+    const FGColumnVector3 v1 = rows[i]->ForceJacobian / in.Mass;
+    const FGColumnVector3 v2 = in.Jinv * (rows[i]->LeverArm * rows[i]->ForceJacobian);
+    for (size_t j=0; j < n; j++)
+      a[i*n+j] = DotProduct(rows[j]->ForceJacobian, v1 + v2*rows[j]->LeverArm) + SharedGive(*rows[i], *rows[j]);
+  }
+  for (size_t i=0; i < n; i++) {
+    const double d = a[i*n+i];
+    rhs[i] = rows[i]->PositionBias/(dt*d);
+    for (size_t j=0; j < n; j++)
+      a[i*n+j] /= d;
+  }
+  const int maxIterations = 500;
+  const double tolerance = 1E-5;
+  for (int iter=0; iter < maxIterations; iter++) {
+    double norm = 0.;
+    for (size_t i=0; i < n; i++) {
+      double dlambda = rhs[i];
+      for (size_t j=0; j < n; j++)
+        dlambda -= a[i*n+j]*lambda[j];
+      const double was = lambda[i];
+      lambda[i] = max(0., was + dlambda);
+      norm += fabs(lambda[i] - was);
+    }
+    if (norm < tolerance) break;
+  }
+
+  FGColumnVector3 force, moment;
+  for (size_t i=0; i < n; i++) {
+    const FGColumnVector3 F = lambda[i] * rows[i]->ForceJacobian;
+    force += F;
+    moment += rows[i]->LeverArm * F;
+  }
+  vPseudoUVWi = in.Tb2i * (dt * force / in.Mass);
+  vPseudoPQRi = dt * (in.Jinv * moment);
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

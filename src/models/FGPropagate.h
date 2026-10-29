@@ -637,6 +637,10 @@ public:
     FGMatrix33 J;
     FGMatrix33 Jinv;
     FGColumnVector3 vAngularMomentum; // of the thrusters, body axes
+    // Taken by the position and the attitude alone this step, inertial frame
+    // ft/s and body rad/s (FGAccelerations::GetPseudoUVWi).
+    FGColumnVector3 vPseudoUVWi;
+    FGColumnVector3 vPseudoPQRi;
     double SemiMajor;
     double SemiMinor;
     double GM; // Gravitational parameter

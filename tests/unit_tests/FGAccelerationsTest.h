@@ -1,4 +1,6 @@
 #include <cxxtest/TestSuite.h>
+#include <limits>
+#include <memory>
 
 #include <FGFDMExec.h>
 #include <models/FGAccelerations.h>
@@ -85,7 +87,39 @@ public:
       TS_ASSERT_DELTA(push, euler, 1E-6);
   }
 
+  // A row's PositionBias moves the aircraft out in position alone: the solve
+  // leaves its speed as Bias holds it and asks the velocity of that bias for its
+  // position, and a row it would push into holds it back.
+  void testPositionBiasMovesPositionAlone() {
+    LagrangeMultiplier out{{-1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, 0.0, std::numeric_limits<double>::max(), 0.0};
+    out.PositionBias = FGAccelerationsTest_SlideFtps;
+    auto accelerations = SolveStill({&out});
+    TS_ASSERT_DELTA(out.value, 0.0, 1E-9);
+    TS_ASSERT_DELTA(accelerations->GetPseudoUVWi()(1), -FGAccelerationsTest_SlideFtps, 1E-6);
+
+    LagrangeMultiplier wall{{1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, 0.0, std::numeric_limits<double>::max(), 0.0};
+    accelerations = SolveStill({&out, &wall});
+    TS_ASSERT_DELTA(accelerations->GetPseudoUVWi()(1), 0.0, 1E-6);
+  }
+
 private:
+  // The accelerations of a still aircraft whose rows are rows, Euler's step.
+  std::shared_ptr<FGAccelerations> SolveStill(const std::vector<LagrangeMultiplier*>& rows) {
+    fdmexStill = std::make_unique<FGFDMExec>();
+    auto accelerations = fdmexStill->GetAccelerations();
+    listStill = rows;
+    FGAccelerations::Inputs& in = accelerations->in;
+    in.J = in.Jinv = in.Ti2b = in.Tb2i = in.Tec2b = in.Tec2i = FGMatrix33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
+    in.Mass = FGAccelerationsTest_MassSlug;
+    in.DeltaT = FGAccelerationsTest_Dt;
+    in.MultipliersList = &listStill;
+    in.TranslationalRateIntegrator = FGPropagate::eRectEuler;
+    accelerations->Run(false);
+    return accelerations;
+  }
+  std::unique_ptr<FGFDMExec> fdmexStill;
+  std::vector<LagrangeMultiplier*> listStill;
+
   // The row's push, lbs, on the body other giving bodyGive along X at its
   // centre of mass, its face moving at faceFtps.
   double Solve(std::uint64_t other, double bodyGive, double faceFtps) {

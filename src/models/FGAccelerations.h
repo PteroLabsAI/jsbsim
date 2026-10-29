@@ -295,6 +295,12 @@ public:
       by, summed, lbs: 0 when it converged, else it ran out of sweeps. */
   double GetFrictionResidual(void) const { return frictionResidual; }
 
+  /** The velocity, inertial frame, ft/s, and the body rates, rad/s, that the
+      rows' PositionBias asks over the next step, which only its position and
+      attitude take (split impulse, Catto 2006): nought with none asked. */
+  const FGColumnVector3& GetPseudoUVWi(void) const { return vPseudoUVWi; }
+  const FGColumnVector3& GetPseudoPQRi(void) const { return vPseudoPQRi; }
+
   /** Retrieves the weight applied on the body.
       Retrieves the weight applied on the body i.e. the force that results from
       the gravity applied to the body mass.
@@ -379,6 +385,7 @@ private:
   /// The inertial rate derivatives of the last steps, newest first, as the multistep schemes take them.
   FGColumnVector3 vUVWidotPast[3], vPQRidotPast[3];
   double frictionResidual = 0.;
+  FGColumnVector3 vPseudoUVWi, vPseudoPQRi;
 
   bool gravTorque;
 
@@ -386,6 +393,7 @@ private:
   void CalculateUVWdot(void);
 
   void CalculateFrictionForces(double dt);
+  void SolvePositionBias(double dt);
 
   void bind(void);
   void Debug(int from) override;
