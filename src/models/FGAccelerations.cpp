@@ -275,6 +275,7 @@ void FGAccelerations::CalculateFrictionForces(double dt)
 
   vFrictionForces.InitMatrix();
   vFrictionMoments.InitMatrix();
+  frictionResidual = 0.;
 
   // If no gears are in contact with the ground then return
   if (!n) return;
@@ -351,6 +352,7 @@ void FGAccelerations::CalculateFrictionForces(double dt)
   // its lightest body takes it, and 50 left the box holding a third of the
   // aircraft's weight. A solve that converges stops at its tolerance.
   const int maxIterations = 500;
+  const double tolerance = 1E-5;
   for (int iter=0; iter < maxIterations; iter++) {
     double norm = 0.;
 
@@ -376,7 +378,8 @@ void FGAccelerations::CalculateFrictionForces(double dt)
       norm += fabs(dlambda);
     }
 
-    if (norm < 1E-5) break;
+    frictionResidual = norm < tolerance ? 0. : norm;
+    if (norm < tolerance) break;
   }
 
   // Calculate the total friction forces and moments

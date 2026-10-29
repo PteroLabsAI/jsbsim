@@ -291,6 +291,10 @@ public:
   double GetGroundForces(int idx) const { return in.GroundForce(idx) + vFrictionForces(idx); }
   FGColumnVector3 GetGroundForces(void) const { return in.GroundForce + vFrictionForces; }
 
+  /** What the last friction solve's last sweep still changed its multipliers
+      by, summed, lbs: 0 when it converged, else it ran out of sweeps. */
+  double GetFrictionResidual(void) const { return frictionResidual; }
+
   /** Retrieves the weight applied on the body.
       Retrieves the weight applied on the body i.e. the force that results from
       the gravity applied to the body mass.
@@ -374,6 +378,7 @@ private:
   FGColumnVector3 vFrictionMoments;
   /// The inertial rate derivatives of the last steps, newest first, as the multistep schemes take them.
   FGColumnVector3 vUVWidotPast[3], vPQRidotPast[3];
+  double frictionResidual = 0.;
 
   bool gravTorque;
 
