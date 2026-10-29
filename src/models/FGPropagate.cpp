@@ -249,6 +249,27 @@ bool FGPropagate::Run(bool Holding)
             0.0, 0.0, 1.0 };
   Tec2i = Ti2ec.Transposed();          // ECEF to ECI frame transform
 
+  UpdateFromPositionAndAttitude();
+
+  Debug(2);
+  return false;
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+void FGPropagate::Displace(const FGColumnVector3& vUVWi, const FGColumnVector3& vPQRi)
+{
+  const double dt = in.DeltaT * rate;
+  VState.vInertialPosition += dt * vUVWi;
+  VState.qAttitudeECI += dt * VState.qAttitudeECI.GetQDot(vPQRi);
+  VState.qAttitudeECI.Normalize();
+  UpdateFromPositionAndAttitude();
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+void FGPropagate::UpdateFromPositionAndAttitude(void)
+{
   // 3. Update the location from the updated Ti2ec and inertial position
   VState.vLocation = Ti2ec*VState.vInertialPosition;
 
@@ -280,9 +301,6 @@ bool FGPropagate::Run(bool Holding)
 
   // Compute orbital parameters in the inertial frame
   ComputeOrbitalParameters();
-
-  Debug(2);
-  return false;
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -426,6 +444,18 @@ void FGPropagate::IntegrateMidpoint(double dt)
     VState.vPQRi = MidpointRates(in.J, H, Moment, w, dt, max(spin, pushedSpin));
   else
     VState.vPQRi += dt * in.vPQRidot;
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+FGPropagate::StepWeights FGPropagate::WeightsOf(int integrator)
+{
+  switch (integrator) {
+  case eAdamsBashforth2: return {1.5, {-0.5, 0., 0.}};
+  case eAdamsBashforth3: return {23./12., {-16./12., 5./12., 0.}};
+  case eAdamsBashforth4: return {55./24., {-59./24., 37./24., -9./24.}};
+  default:               return {1., {0., 0., 0.}};
+  }
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

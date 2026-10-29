@@ -230,6 +230,22 @@ public:
       @return The body frame inertial angular rates in rad/sec.
   */
   const FGColumnVector3& GetPQRi(void) const {return VState.vPQRi;}
+  /// The schemes the body rates are integrated with, whose steps the friction forces anticipate.
+  int GetRotationalRateIntegrator(void) const { return integrator_rotational_rate; }
+  int GetTranslationalRateIntegrator(void) const { return integrator_translational_rate; }
+
+  /** How a step of a rate's scheme takes up its derivatives: this step's at
+      Weight, those of the steps before, newest first, at Past. What a force
+      solved for this step moves the rate by, and what the past ones still add:
+      the friction rows aim at it (FGAccelerations::CalculateFrictionForces).
+      Any other scheme as Euler's: AB5 is not taken up yet, a frozen rate meets
+      no force, and the trapezoidal one, 0.5*(this step's + the last's), aimed
+      at exactly, pushes alternately twice as hard and not at all for ever. */
+  struct StepWeights {
+    double Weight;
+    double Past[3];
+  };
+  static StepWeights WeightsOf(int integrator);
 
   /** Retrieves the time derivative of the body orientation quaternion.
       Retrieves the time derivative of the body orientation quaternion based on
@@ -539,6 +555,11 @@ public:
   void SetEarthPositionAngle(double EPA) {epa = EPA;}
 
   void SetInertialOrientation(const FGQuaternion& Qi);
+  /** Moves the position and the attitude by a step at vUVWi, inertial frame
+      ft/s, and vPQRi, body rad/s, the velocity left as it is: a split impulse
+      (FGAccelerations::GetPseudoUVWi), taken in the step that solved it so
+      the state it ends at shows it. */
+  void Displace(const FGColumnVector3& vUVWi, const FGColumnVector3& vPQRi);
   void SetInertialVelocity(const FGColumnVector3& Vi);
   void SetInertialRates(const FGColumnVector3& vRates);
 
@@ -689,6 +710,8 @@ private:
 
   void UpdateLocationMatrices(void);
   void UpdateBodyMatrices(void);
+  /** What the inertial position and attitude make of the rest of the state. */
+  void UpdateFromPositionAndAttitude(void);
   void UpdateVehicleState(void);
   void ComputeOrbitalParameters(void);
 

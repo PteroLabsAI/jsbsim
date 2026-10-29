@@ -53,8 +53,10 @@ COMMENTS, REFERENCES,  and NOTES
 INCLUDES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
+#include <limits>
 #include "FGAccelerations.h"
 #include "FGFDMExec.h"
+#include "models/FGPropagate.h"
 #include "input_output/FGLog.h"
 
 using namespace std;
@@ -114,8 +116,18 @@ bool FGAccelerations::Run(bool Holding)
   CalculatePQRdot();   // Angular rate derivative
   CalculateUVWdot();   // Translational rate derivative
 
+  const double dt = in.DeltaT * rate;
   if (!FDMExec->GetHoldDown())
-    CalculateFrictionForces(in.DeltaT * rate);  // Update rate derivatives with friction forces
+    CalculateFrictionForces(dt);  // Update rate derivatives with friction forces
+
+  // Kept as FGPropagate keeps its own: pushed each step, all this one while
+  // integration is suspended (RunIC, trim).
+  for (int k = 2; k > 0; k--) {
+    vUVWidotPast[k] = dt > 0. ? vUVWidotPast[k-1] : vUVWidot;
+    vPQRidotPast[k] = dt > 0. ? vPQRidotPast[k-1] : vPQRidot;
+  }
+  vUVWidotPast[0] = vUVWidot;
+  vPQRidotPast[0] = vPQRidot;
 
   Debug(2);
   return false;
@@ -231,7 +243,31 @@ void FGAccelerations::SetHoldDown(bool hd)
 // The linear strut dampers are solved here too, as soft constraints along the
 // ground normal, so that the friction bounds follow the solved normal force.
 // A row may push another body besides the aircraft (LagrangeMultiplier::Other),
-// which gives to it too, and hold the contact at that body's face speed.
+// which gives to it too, and hold the contact at that body's face speed; or two
+// bodies (Other2), as a body resting on another does.
+// The forces aim at one step of the scheme that integrates each rate
+// (FGPropagate::Integrate): a multistep scheme takes this step's derivative at
+// its weight and adds the past ones', so a force aimed at an Euler step came
+// back the next step against itself. The other bodies are moved by Euler's.
+
+namespace {
+// How the bodies rows i and j both push move them together: the dot products
+// of their Give on each such body.
+double SharedGive(const LagrangeMultiplier& i, const LagrangeMultiplier& j)
+{
+  const std::uint64_t iOthers[2] = {i.Other, i.Other2};
+  const std::uint64_t jOthers[2] = {j.Other, j.Other2};
+  const double* iGives[2] = {i.Give, i.Give2};
+  const double* jGives[2] = {j.Give, j.Give2};
+  double give = 0.;
+  for (int p = 0; p < 2; p++)
+    for (int q = 0; q < 2; q++)
+      if (iOthers[p] && iOthers[p] == jOthers[q])
+        for (int k = 0; k < 6; k++)
+          give += iGives[p][k]*jGives[q][k];
+  return give;
+}
+}
 
 void FGAccelerations::CalculateFrictionForces(double dt)
 {
@@ -240,6 +276,9 @@ void FGAccelerations::CalculateFrictionForces(double dt)
 
   vFrictionForces.InitMatrix();
   vFrictionMoments.InitMatrix();
+  frictionResidual = 0.;
+  vPseudoUVWi.InitMatrix();
+  vPseudoPQRi.InitMatrix();
 
   // If no gears are in contact with the ground then return
   if (!n) return;
@@ -248,12 +287,16 @@ void FGAccelerations::CalculateFrictionForces(double dt)
   vector<double> rhs(n);
   vector<double> diag(n);
 
+  // With no step, as in a trim, the forces only balance the derivatives.
+  const FGPropagate::StepWeights translation = FGPropagate::WeightsOf(dt > 0. ? in.TranslationalRateIntegrator : 0);
+  const FGPropagate::StepWeights rotation = FGPropagate::WeightsOf(dt > 0. ? in.RotationalRateIntegrator : 0);
+
   // Assemble the linear system of equations
   for (unsigned int i=0; i < n; i++) {
     FGColumnVector3 U = multipliers[i]->ForceJacobian;
     FGColumnVector3 r = multipliers[i]->LeverArm;
-    FGColumnVector3 v1 = U / in.Mass;
-    FGColumnVector3 v2 = in.Jinv * (r*U); // Should be J^-T but J is symmetric and so is J^-1
+    FGColumnVector3 v1 = translation.Weight * U / in.Mass;
+    FGColumnVector3 v2 = rotation.Weight * (in.Jinv * (r*U)); // Should be J^-T but J is symmetric and so is J^-1
 
     for (unsigned int j=0; j < i; j++)
       a[i*n+j] = a[j*n+i]; // Takes advantage of the symmetry of Jac^T*M^-1*Jac
@@ -261,24 +304,27 @@ void FGAccelerations::CalculateFrictionForces(double dt)
     for (unsigned int j=i; j < n; j++) {
       U = multipliers[j]->ForceJacobian;
       r = multipliers[j]->LeverArm;
-      a[i*n+j] = DotProduct(U, v1 + v2*r);
-      if (multipliers[i]->Other && multipliers[i]->Other == multipliers[j]->Other)
-        for (unsigned int k=0; k < 6; k++)
-          a[i*n+j] += multipliers[i]->Give[k]*multipliers[j]->Give[k];
+      a[i*n+j] = DotProduct(U, v1 + v2*r) + SharedGive(*multipliers[i], *multipliers[j]);
     }
   }
 
   // Assemble the RHS member
 
-  // Translation
   FGColumnVector3 vdot = vUVWdot;
-  if (dt > 0.) // Zeroes out the relative movement between the aircraft and the ground
-    vdot += (in.vUVW - in.Tec2b * in.TerrainVelocity) / dt;
-
-  // Rotation
   FGColumnVector3 wdot = vPQRdot;
-  if (dt > 0.) // Zeroes out the relative movement between the aircraft and the ground
-    wdot += (in.vPQR - in.Tec2b * in.TerrainAngularVel) / dt;
+  if (dt > 0.) {
+    // The multistep part of each step on the inertial derivatives alone: the
+    // frame's turning is in the state, which no scheme integrates.
+    FGColumnVector3 uvwidot = (translation.Weight - 1.) * vUVWidot;
+    FGColumnVector3 pqridot = (rotation.Weight - 1.) * vPQRidot;
+    for (int k = 0; k < 3; k++) {
+      uvwidot += translation.Past[k] * vUVWidotPast[k];
+      pqridot += rotation.Past[k] * vPQRidotPast[k];
+    }
+    // Zeroes out the relative movement between the aircraft and the ground
+    vdot += in.Ti2b * uvwidot + (in.vUVW - in.Tec2b * in.TerrainVelocity) / dt;
+    wdot += pqridot + (in.vPQR - in.Tec2b * in.TerrainAngularVel) / dt;
+  }
 
   // Prepare the linear system for the Gauss-Seidel algorithm :
   // 1. Compute the right hand side member 'rhs'
@@ -286,6 +332,11 @@ void FGAccelerations::CalculateFrictionForces(double dt)
   //    a division computation at each iteration of Gauss-Seidel.
   for (unsigned int i=0; i < n; i++) {
     double d = a[i*n+i];
+    if (d <= 0.) {
+      LogException err;
+      err << "A friction row moves neither the aircraft nor a body it names!";
+      throw err;
+    }
     diag[i] = d;
     FGColumnVector3 U = multipliers[i]->ForceJacobian;
     FGColumnVector3 r = multipliers[i]->LeverArm;
@@ -298,8 +349,14 @@ void FGAccelerations::CalculateFrictionForces(double dt)
       a[i*n+j] /= d;
   }
 
-  // Resolve the Lagrange multipliers with the projected Gauss-Seidel method
-  for (int iter=0; iter < 50; iter++) {
+  // Resolve the Lagrange multipliers with the projected Gauss-Seidel method.
+  // As many sweeps as it takes, up to a cap a chain of a heavy aircraft on a
+  // light box on a plank needs: it passes a push down the chain only as fast as
+  // its lightest body takes it, and 50 left the box holding a third of the
+  // aircraft's weight. A solve that converges stops at its tolerance.
+  const int maxIterations = 500;
+  const double tolerance = 1E-5;
+  for (int iter=0; iter < maxIterations; iter++) {
     double norm = 0.;
 
     for (unsigned int i=0; i < n; i++) {
@@ -324,7 +381,8 @@ void FGAccelerations::CalculateFrictionForces(double dt)
       norm += fabs(dlambda);
     }
 
-    if (norm < 1E-5) break;
+    frictionResidual = norm < tolerance ? 0. : norm;
+    if (norm < tolerance) break;
   }
 
   // Calculate the total friction forces and moments
@@ -347,6 +405,64 @@ void FGAccelerations::CalculateFrictionForces(double dt)
   vUVWidot += in.Tb2i * accel;
   vPQRdot += omegadot;
   vPQRidot += omegadot;
+
+  if (dt > 0.) SolvePositionBias(dt);
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+// The rows' PositionBias solved alone, from rest, on the rows that only push:
+// those asked come out, the others are not pushed into. A depth worked off by
+// the rows' own speed was kept once they parted: a rod left a wall at 0.29 of
+// the speed it met it.
+void FGAccelerations::SolvePositionBias(double dt)
+{
+  vector<const LagrangeMultiplier*> rows;
+  bool asked = false;
+  for (const LagrangeMultiplier* m : *in.MultipliersList) {
+    if (m->Normal || m->Min != 0. || m->Max != numeric_limits<double>::max() || m->ForceJacobian.Magnitude() == 0.) continue;
+    rows.push_back(m);
+    asked = asked || m->PositionBias > 0.;
+  }
+  if (!asked) return;
+
+  const size_t n = rows.size();
+  vector<double> a(n*n), rhs(n), lambda(n, 0.);
+  for (size_t i=0; i < n; i++) {
+    const FGColumnVector3 v1 = rows[i]->ForceJacobian / in.Mass;
+    const FGColumnVector3 v2 = in.Jinv * (rows[i]->LeverArm * rows[i]->ForceJacobian);
+    for (size_t j=0; j < n; j++)
+      a[i*n+j] = DotProduct(rows[j]->ForceJacobian, v1 + v2*rows[j]->LeverArm) + SharedGive(*rows[i], *rows[j]);
+  }
+  for (size_t i=0; i < n; i++) {
+    const double d = a[i*n+i];
+    rhs[i] = rows[i]->PositionBias/(dt*d);
+    for (size_t j=0; j < n; j++)
+      a[i*n+j] /= d;
+  }
+  const int maxIterations = 500;
+  const double tolerance = 1E-5;
+  for (int iter=0; iter < maxIterations; iter++) {
+    double norm = 0.;
+    for (size_t i=0; i < n; i++) {
+      double dlambda = rhs[i];
+      for (size_t j=0; j < n; j++)
+        dlambda -= a[i*n+j]*lambda[j];
+      const double was = lambda[i];
+      lambda[i] = max(0., was + dlambda);
+      norm += fabs(lambda[i] - was);
+    }
+    if (norm < tolerance) break;
+  }
+
+  FGColumnVector3 force, moment;
+  for (size_t i=0; i < n; i++) {
+    const FGColumnVector3 F = lambda[i] * rows[i]->ForceJacobian;
+    force += F;
+    moment += rows[i]->LeverArm * F;
+  }
+  vPseudoUVWi = in.Tb2i * (dt * force / in.Mass);
+  vPseudoPQRi = dt * (in.Jinv * moment);
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

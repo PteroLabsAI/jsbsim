@@ -70,9 +70,19 @@ struct LagrangeMultiplier {
   // 1/sqrt(slug).
   std::uint64_t Other = 0;
   double Give[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+  // A second body the row pushes, as between two bodies it holds apart, none
+  // if 0, and its mobility along the row as Give.
+  std::uint64_t Other2 = 0;
+  double Give2[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
   // The contact's speed along ForceJacobian that the row holds, over the
   // terrain's under the CG, ft/s: the speed of the face it pushes.
   double Bias = 0.0;
+  // A row that only pushes, without bound (Min 0, Max the largest double, no
+  // Normal), as a hull's does but a gear's not: how fast its contact is to come
+  // out along ForceJacobian in position alone, ft/s, solved apart from Bias
+  // (FGAccelerations::GetPseudoUVWi): a depth so worked off leaves no speed the
+  // contact keeps once it parts.
+  double PositionBias = 0.0;
 };
 
 } // namespace

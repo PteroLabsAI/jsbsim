@@ -421,7 +421,11 @@ bool FGFDMExec::Run(void)
 
   for (unsigned int i = 0; i < Models.size(); i++) {
     LoadInputs(i);
-    Models[i]->Run(holding);
+    const bool skipped = Models[i]->Run(holding);
+    // The contacts' split impulse in the step that solved it: the state this
+    // step ends at, which another body's contacts read, has it.
+    if (i == eAccelerations && !skipped && !holding && !IntegrationSuspended())
+      Propagate->Displace(Accelerations->GetPseudoUVWi(), Accelerations->GetPseudoPQRi());
   }
 
   if (Terminate) success = false;
@@ -603,6 +607,8 @@ void FGFDMExec::LoadInputs(unsigned int idx)
     Accelerations->in.MultipliersList = GroundReactions->GetMultipliersList();
     Accelerations->in.TerrainVelocity = Propagate->GetTerrainVelocity();
     Accelerations->in.TerrainAngularVel = Propagate->GetTerrainAngularVelocity();
+    Accelerations->in.RotationalRateIntegrator = Propagate->GetRotationalRateIntegrator();
+    Accelerations->in.TranslationalRateIntegrator = Propagate->GetTranslationalRateIntegrator();
     break;
   default:
     break;

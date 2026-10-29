@@ -291,6 +291,16 @@ public:
   double GetGroundForces(int idx) const { return in.GroundForce(idx) + vFrictionForces(idx); }
   FGColumnVector3 GetGroundForces(void) const { return in.GroundForce + vFrictionForces; }
 
+  /** What the last friction solve's last sweep still changed its multipliers
+      by, summed, lbs: 0 when it converged, else it ran out of sweeps. */
+  double GetFrictionResidual(void) const { return frictionResidual; }
+
+  /** The velocity, inertial frame, ft/s, and the body rates, rad/s, that the
+      rows' PositionBias asks over the next step, which only its position and
+      attitude take (split impulse, Catto 2006): nought with none asked. */
+  const FGColumnVector3& GetPseudoUVWi(void) const { return vPseudoUVWi; }
+  const FGColumnVector3& GetPseudoPQRi(void) const { return vPseudoPQRi; }
+
   /** Retrieves the weight applied on the body.
       Retrieves the weight applied on the body i.e. the force that results from
       the gravity applied to the body mass.
@@ -354,6 +364,9 @@ public:
     FGColumnVector3 TerrainVelocity;
     /// Terrain angular velocities with respect to the local frame (expressed in the ECEF frame).
     FGColumnVector3 TerrainAngularVel;
+    /// FGPropagate::eIntegrateType of the body rates, whose steps the friction forces anticipate.
+    int RotationalRateIntegrator = 0;
+    int TranslationalRateIntegrator = 0;
     /// Time step
     double DeltaT;
     /// Body mass
@@ -369,6 +382,10 @@ private:
   FGColumnVector3 vBodyAccel;
   FGColumnVector3 vFrictionForces;
   FGColumnVector3 vFrictionMoments;
+  /// The inertial rate derivatives of the last steps, newest first, as the multistep schemes take them.
+  FGColumnVector3 vUVWidotPast[3], vPQRidotPast[3];
+  double frictionResidual = 0.;
+  FGColumnVector3 vPseudoUVWi, vPseudoPQRi;
 
   bool gravTorque;
 
@@ -376,6 +393,7 @@ private:
   void CalculateUVWdot(void);
 
   void CalculateFrictionForces(double dt);
+  void SolvePositionBias(double dt);
 
   void bind(void);
   void Debug(int from) override;
