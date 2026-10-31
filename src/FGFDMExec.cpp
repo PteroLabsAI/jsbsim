@@ -605,6 +605,10 @@ void FGFDMExec::LoadInputs(unsigned int idx)
     Accelerations->in.TerrainAngularVel = Propagate->GetTerrainAngularVelocity();
     Accelerations->in.RotationalRateIntegrator = Propagate->GetRotationalRateIntegrator();
     Accelerations->in.TranslationalRateIntegrator = Propagate->GetTranslationalRateIntegrator();
+    for (int k = 0; k < 3; k++) {
+      Accelerations->in.vUVWidotPast[k] = Propagate->GetVState().dqUVWidot[k];
+      Accelerations->in.vPQRidotPast[k] = Propagate->GetVState().dqPQRidot[k];
+    }
     break;
   default:
     break;
