@@ -85,6 +85,17 @@ public:
       TS_ASSERT_DELTA(push, euler, 1E-6);
   }
 
+  // A row that moves nothing, or by a give that is not a number, throws
+  // rather than dividing by its diagonal.
+  void testRowMovingNothingThrows() {
+    LagrangeMultiplier still{{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, -1E9, 1E9, 0.0};
+    TS_ASSERT_THROWS(Slide({&still}, FGPropagate::eRectEuler, 1, 0.0), BaseException&);
+    LagrangeMultiplier broken{{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, -1E9, 1E9, 0.0};
+    broken.Other = 1;
+    broken.Give[0] = std::nan("");
+    TS_ASSERT_THROWS(Slide({&broken}, FGPropagate::eRectEuler, 1, 0.0), BaseException&);
+  }
+
 private:
   // The row's push, lbs, on the body other giving bodyGive along X at its
   // centre of mass, its face moving at faceFtps.
@@ -98,7 +109,8 @@ private:
 
   // Each step's push of rows' first on an aircraft sliding along X at
   // slideFtps, its translational rates integrated by scheme, solved steps
-  // times as if each step left it as it was.
+  // times as if each step left it as it was, its derivatives pushed into the
+  // past as FGPropagate pushes them.
   std::vector<double> Slide(const std::vector<LagrangeMultiplier*>& rows, int scheme, int steps, double slideFtps) {
     FGFDMExec fdmex;
     auto accelerations = fdmex.GetAccelerations();
@@ -114,6 +126,9 @@ private:
     for (int step = 0; step < steps; step++) {
       accelerations->Run(false);
       pushes.push_back(rows[0]->value);
+      for (int k = 2; k > 0; k--)
+        in.vUVWidotPast[k] = in.vUVWidotPast[k-1];
+      in.vUVWidotPast[0] = accelerations->GetUVWidot();
     }
     return pushes;
   }

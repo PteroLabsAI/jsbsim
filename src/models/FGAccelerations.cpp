@@ -115,18 +115,8 @@ bool FGAccelerations::Run(bool Holding)
   CalculatePQRdot();   // Angular rate derivative
   CalculateUVWdot();   // Translational rate derivative
 
-  const double dt = in.DeltaT * rate;
   if (!FDMExec->GetHoldDown())
-    CalculateFrictionForces(dt);  // Update rate derivatives with friction forces
-
-  // Kept as FGPropagate keeps its own: pushed each step, all this one while
-  // integration is suspended (RunIC, trim).
-  for (int k = 2; k > 0; k--) {
-    vUVWidotPast[k] = dt > 0. ? vUVWidotPast[k-1] : vUVWidot;
-    vPQRidotPast[k] = dt > 0. ? vPQRidotPast[k-1] : vPQRidot;
-  }
-  vUVWidotPast[0] = vUVWidot;
-  vPQRidotPast[0] = vPQRidot;
+    CalculateFrictionForces(in.DeltaT * rate);  // Update rate derivatives with friction forces
 
   Debug(2);
   return false;
@@ -314,8 +304,8 @@ void FGAccelerations::CalculateFrictionForces(double dt)
     FGColumnVector3 uvwidot = (translation.Weight - 1.) * vUVWidot;
     FGColumnVector3 pqridot = (rotation.Weight - 1.) * vPQRidot;
     for (int k = 0; k < 3; k++) {
-      uvwidot += translation.Past[k] * vUVWidotPast[k];
-      pqridot += rotation.Past[k] * vPQRidotPast[k];
+      uvwidot += translation.Past[k] * in.vUVWidotPast[k];
+      pqridot += rotation.Past[k] * in.vPQRidotPast[k];
     }
     // Zeroes out the relative movement between the aircraft and the ground
     vdot += in.Ti2b * uvwidot + (in.vUVW - in.Tec2b * in.TerrainVelocity) / dt;
@@ -328,9 +318,10 @@ void FGAccelerations::CalculateFrictionForces(double dt)
   //    a division computation at each iteration of Gauss-Seidel.
   for (unsigned int i=0; i < n; i++) {
     double d = a[i*n+i];
-    if (d <= 0.) {
+    // Not a number too: a body's give or the aircraft's mass gone bad.
+    if (!(d > 0.)) {
       LogException err;
-      err << "A friction row moves neither the aircraft nor a body it names!";
+      err << "A friction row moves neither the aircraft nor a body it names, or not by a number!";
       throw err;
     }
     diag[i] = d;

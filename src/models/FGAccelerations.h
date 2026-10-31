@@ -357,6 +357,9 @@ public:
     /// FGPropagate::eIntegrateType of the body rates, whose steps the friction forces anticipate.
     int RotationalRateIntegrator = 0;
     int TranslationalRateIntegrator = 0;
+    /// The inertial rate derivatives FGPropagate keeps of the last steps,
+    /// newest first: what its next step's multistep scheme adds to this one's.
+    FGColumnVector3 vUVWidotPast[3], vPQRidotPast[3];
     /// Time step
     double DeltaT;
     /// Body mass
@@ -372,8 +375,6 @@ private:
   FGColumnVector3 vBodyAccel;
   FGColumnVector3 vFrictionForces;
   FGColumnVector3 vFrictionMoments;
-  /// The inertial rate derivatives of the last steps, newest first, as the multistep schemes take them.
-  FGColumnVector3 vUVWidotPast[3], vPQRidotPast[3];
 
   bool gravTorque;
 
