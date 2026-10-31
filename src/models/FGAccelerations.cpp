@@ -303,7 +303,9 @@ void FGAccelerations::CalculateFrictionForces(double dt)
     // frame's turning is in the state, which no scheme integrates.
     FGColumnVector3 uvwidot = (translation.Weight - 1.) * vUVWidot;
     FGColumnVector3 pqridot = (rotation.Weight - 1.) * vPQRidot;
-    for (int k = 0; k < 3; k++) {
+    static_assert(std::extent_v<decltype(Inputs::vUVWidotPast)> == std::extent_v<decltype(FGPropagate::StepWeights::Past)>,
+                  "A past derivative for each the schemes take");
+    for (size_t k = 0; k < std::size(translation.Past); k++) {
       uvwidot += translation.Past[k] * in.vUVWidotPast[k];
       pqridot += rotation.Past[k] * in.vPQRidotPast[k];
     }

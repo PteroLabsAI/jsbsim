@@ -450,7 +450,7 @@ T MultistepDerivative(const deque<T>& ValDot, int scheme)
 {
   const FGPropagate::StepWeights w = FGPropagate::WeightsOf(scheme);
   T derivative = w.Weight*ValDot[0];
-  for (int k = 0; k < 3; k++)
+  for (size_t k = 0; k < std::size(w.Past); k++)
     derivative += w.Past[k]*ValDot[k+1];
   return derivative;
 }
