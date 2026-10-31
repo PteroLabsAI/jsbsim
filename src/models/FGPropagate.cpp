@@ -442,6 +442,22 @@ FGPropagate::StepWeights FGPropagate::WeightsOf(int integrator)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+namespace {
+// A step's derivative of a multistep scheme over ValDot, newest first, at the
+// weights the friction rows aim at (FGPropagate::WeightsOf).
+template <class T>
+T MultistepDerivative(const deque<T>& ValDot, int scheme)
+{
+  const FGPropagate::StepWeights w = FGPropagate::WeightsOf(scheme);
+  T derivative = w.Weight*ValDot[0];
+  for (int k = 0; k < 3; k++)
+    derivative += w.Past[k]*ValDot[k+1];
+  return derivative;
+}
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 void FGPropagate::Integrate( FGColumnVector3& Integrand,
                              FGColumnVector3& Val,
                              deque <FGColumnVector3>& ValDot,
@@ -456,11 +472,9 @@ void FGPropagate::Integrate( FGColumnVector3& Integrand,
     break;
   case eTrapezoidal:     Integrand += 0.5*dt*(ValDot[0] + ValDot[1]);
     break;
-  case eAdamsBashforth2: Integrand += dt*(1.5*ValDot[0] - 0.5*ValDot[1]);
-    break;
-  case eAdamsBashforth3: Integrand += (1/12.0)*dt*(23.0*ValDot[0] - 16.0*ValDot[1] + 5.0*ValDot[2]);
-    break;
-  case eAdamsBashforth4: Integrand += (1/24.0)*dt*(55.0*ValDot[0] - 59.0*ValDot[1] + 37.0*ValDot[2] - 9.0*ValDot[3]);
+  case eAdamsBashforth2:
+  case eAdamsBashforth3:
+  case eAdamsBashforth4: Integrand += dt*MultistepDerivative(ValDot, integration_type);
     break;
   case eAdamsBashforth5: Integrand += dt*((1901./720.)*ValDot[0] - (1387./360.)*ValDot[1] + (109./30.)*ValDot[2] - (637./360.)*ValDot[3] + (251./720.)*ValDot[4]);
     break;
@@ -497,11 +511,9 @@ void FGPropagate::Integrate( FGQuaternion& Integrand,
     break;
   case eTrapezoidal:     Integrand += 0.5*dt*(ValDot[0] + ValDot[1]);
     break;
-  case eAdamsBashforth2: Integrand += dt*(1.5*ValDot[0] - 0.5*ValDot[1]);
-    break;
-  case eAdamsBashforth3: Integrand += (1/12.0)*dt*(23.0*ValDot[0] - 16.0*ValDot[1] + 5.0*ValDot[2]);
-    break;
-  case eAdamsBashforth4: Integrand += (1/24.0)*dt*(55.0*ValDot[0] - 59.0*ValDot[1] + 37.0*ValDot[2] - 9.0*ValDot[3]);
+  case eAdamsBashforth2:
+  case eAdamsBashforth3:
+  case eAdamsBashforth4: Integrand += dt*MultistepDerivative(ValDot, integration_type);
     break;
   case eAdamsBashforth5: Integrand += dt*((1901./720.)*ValDot[0] - (1387./360.)*ValDot[1] + (109./30.)*ValDot[2] - (637./360.)*ValDot[3] + (251./720.)*ValDot[4]);
     break;

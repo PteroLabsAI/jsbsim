@@ -31,7 +31,7 @@ START_AGL_FT = 5.0
 SETTLE_S = 50.0
 WATCH_S = 10.0
 # simulation/integrator/rate/rotational: FGPropagate::eIntegrateType
-SCHEMES = {'Euler': 1, 'AB2': 3, 'AB3': 4, 'AB4': 5}
+SCHEMES = {'Euler': 1, 'AB2': 3, 'AB3': 4, 'AB4': 5, 'Midpoint': 10}
 # With friction aimed at an Euler step, AB2 kept the body rates at 4E-4 rad/s
 # and AB3 at 2E-2 rad/s, sliding 1.8 ft; aimed at their own step, every scheme
 # here settles under 3E-8 rad/s and 1E-4 ft.
