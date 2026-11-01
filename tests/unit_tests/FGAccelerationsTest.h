@@ -152,6 +152,27 @@ public:
                            })[0], FGAccelerationsTest_HostLbs);
   }
 
+  // Out of a step, as in a trim, the rows balance this aircraft's derivatives
+  // alone: no host is offered them.
+  void testHostNotOfferedATrimsRows() {
+    FGFDMExec fdmex;
+    auto accelerations = fdmex.GetAccelerations();
+    LagrangeMultiplier row{{1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, -1E9, 1E9, 0.0};
+    std::vector<LagrangeMultiplier*> list{&row};
+    FGAccelerations::Inputs& in = accelerations->in;
+    in.J = in.Jinv = in.Ti2b = in.Tb2i = in.Tec2b = in.Tec2i = FGMatrix33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
+    in.Mass = FGAccelerationsTest_MassSlug;
+    in.DeltaT = 0.0;
+    in.MultipliersList = &list;
+    bool offered = false;
+    accelerations->SetFrictionSolver([&offered](std::vector<FGAccelerations::FrictionRow>&, double) {
+      offered = true;
+      return false;
+    });
+    accelerations->Run(false);
+    TS_ASSERT(!offered);
+  }
+
   // Two aircraft's rows solved together keep each aircraft's push its own: a
   // row of each on a body of its own pushes as it does alone. On one body of
   // the aircraft's mass, which gives to both, each pushes 2/3 of that.
