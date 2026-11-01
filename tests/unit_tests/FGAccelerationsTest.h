@@ -114,14 +114,24 @@ public:
   }
 
   // Held down, the rows are not solved, and a move one asked before is not
-  // taken again.
+  // taken: not even by the first held step's Propagate, which runs first.
   void testHeldDownAsksNoPositionMove() {
     LagrangeMultiplier out{{-1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, 0.0, std::numeric_limits<double>::max(), 0.0};
     out.PositionBias = FGAccelerationsTest_SlideFtps;
     auto accelerations = SolveStill({&out});
     fdmexStill->SetHoldDown(true);
-    accelerations->Run(false);
     TS_ASSERT_DELTA(accelerations->GetPseudoUVWi().Magnitude(), 0.0, 1E-12);
+  }
+
+  // A row that asks a move of the position but is not one the position solve
+  // takes, or asks it by no number, throws rather than being left out.
+  void testUnsolvablePositionBiasThrows() {
+    LagrangeMultiplier friction{{-1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, -1.0, 1.0, 0.0};
+    friction.PositionBias = FGAccelerationsTest_SlideFtps;
+    TS_ASSERT_THROWS(SolveStill({&friction}), BaseException&);
+    LagrangeMultiplier broken{{-1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, 0.0, std::numeric_limits<double>::max(), 0.0};
+    broken.PositionBias = std::nan("");
+    TS_ASSERT_THROWS(SolveStill({&broken}), BaseException&);
   }
 
 private:
