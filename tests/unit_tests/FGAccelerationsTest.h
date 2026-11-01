@@ -113,6 +113,17 @@ public:
     TS_ASSERT_DELTA(accelerations->GetPseudoUVWi()(1), 0.0, 1E-6);
   }
 
+  // Held down, the rows are not solved, and a move one asked before is not
+  // taken again.
+  void testHeldDownAsksNoPositionMove() {
+    LagrangeMultiplier out{{-1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, 0.0, std::numeric_limits<double>::max(), 0.0};
+    out.PositionBias = FGAccelerationsTest_SlideFtps;
+    auto accelerations = SolveStill({&out});
+    fdmexStill->SetHoldDown(true);
+    accelerations->Run(false);
+    TS_ASSERT_DELTA(accelerations->GetPseudoUVWi().Magnitude(), 0.0, 1E-12);
+  }
+
 private:
   // The accelerations of a still aircraft whose rows are rows, Euler's step.
   std::shared_ptr<FGAccelerations> SolveStill(const std::vector<LagrangeMultiplier*>& rows) {
