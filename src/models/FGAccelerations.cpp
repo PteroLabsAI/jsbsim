@@ -118,11 +118,6 @@ bool FGAccelerations::Run(bool Holding)
 
   if (!FDMExec->GetHoldDown())
     CalculateFrictionForces(in.DeltaT * rate);  // Update rate derivatives with friction forces
-  else {
-    // Held down, no row is solved, and none asks the position a move.
-    vPseudoUVWi.InitMatrix();
-    vPseudoPQRi.InitMatrix();
-  }
 
   Debug(2);
   return false;
@@ -220,6 +215,10 @@ void FGAccelerations::SetHoldDown(bool hd)
     vUVWdot.InitMatrix();
     vPQRdot.InitMatrix();
     vPQRidot = vPQRdot - in.vPQRi * (in.Ti2b * in.vOmegaPlanet);
+    // No row is solved held down, and none asks the position a move: not the
+    // last free step's either, which the next step's Propagate would take.
+    vPseudoUVWi.InitMatrix();
+    vPseudoPQRi.InitMatrix();
   }
 }
 
@@ -246,6 +245,14 @@ void FGAccelerations::SetHoldDown(bool hd)
 // back the next step against itself. The other bodies are moved by Euler's.
 
 namespace {
+// The projected Gauss-Seidel's caps, for both solves: as many sweeps as it
+// takes, up to what a chain of a heavy aircraft on a light box on a plank
+// needs (it passes a push down the chain only as fast as its lightest body
+// takes it, and 50 left the box holding a third of the aircraft's weight); a
+// solve that converges stops once a sweep moves its multipliers by less.
+constexpr int PGSMaxIterations = 500;
+constexpr double PGSTolerance = 1E-5;
+
 // How the bodies rows i and j both push move them together: the dot products
 // of their Give on each such body.
 double SharedGive(const LagrangeMultiplier& i, const LagrangeMultiplier& j)
@@ -347,12 +354,7 @@ void FGAccelerations::CalculateFrictionForces(double dt)
   }
 
   // Resolve the Lagrange multipliers with the projected Gauss-Seidel method.
-  // As many sweeps as it takes, up to a cap a chain of a heavy aircraft on a
-  // light box on a plank needs: it passes a push down the chain only as fast as
-  // its lightest body takes it, and 50 left the box holding a third of the
-  // aircraft's weight. A solve that converges stops at its tolerance.
-  const int maxIterations = 500;
-  for (int iter=0; iter < maxIterations; iter++) {
+  for (int iter=0; iter < PGSMaxIterations; iter++) {
     double norm = 0.;
 
     for (unsigned int i=0; i < n; i++) {
@@ -377,7 +379,7 @@ void FGAccelerations::CalculateFrictionForces(double dt)
       norm += fabs(dlambda);
     }
 
-    if (norm < 1E-5) break;
+    if (norm < PGSTolerance) break;
   }
 
   // Calculate the total friction forces and moments
@@ -415,7 +417,14 @@ void FGAccelerations::SolvePositionBias(double dt)
   vector<const LagrangeMultiplier*> rows;
   bool asked = false;
   for (const LagrangeMultiplier* m : *in.MultipliersList) {
-    if (m->Normal || m->Min != 0. || m->Max != numeric_limits<double>::max() || m->ForceJacobian.Magnitude() == 0.) continue;
+    const bool pushes = !m->Normal && m->Min == 0. && m->Max == numeric_limits<double>::max() && m->ForceJacobian.Magnitude() > 0.;
+    // A move asked of a row this solve does not take, or by no number.
+    if (!(m->PositionBias >= 0.) || (m->PositionBias > 0. && !pushes)) {
+      LogException err;
+      err << "A friction row asks a move of the position that only a push out of a face can take, or not by a number!";
+      throw err;
+    }
+    if (!pushes) continue;
     rows.push_back(m);
     asked = asked || m->PositionBias > 0.;
   }
@@ -435,9 +444,7 @@ void FGAccelerations::SolvePositionBias(double dt)
     for (size_t j=0; j < n; j++)
       a[i*n+j] /= d;
   }
-  const int maxIterations = 500;
-  const double tolerance = 1E-5;
-  for (int iter=0; iter < maxIterations; iter++) {
+  for (int iter=0; iter < PGSMaxIterations; iter++) {
     double norm = 0.;
     for (size_t i=0; i < n; i++) {
       double dlambda = rhs[i];
@@ -447,7 +454,7 @@ void FGAccelerations::SolvePositionBias(double dt)
       lambda[i] = max(0., was + dlambda);
       norm += fabs(lambda[i] - was);
     }
-    if (norm < tolerance) break;
+    if (norm < PGSTolerance) break;
   }
 
   FGColumnVector3 force, moment;
