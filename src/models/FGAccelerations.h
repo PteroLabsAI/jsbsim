@@ -320,9 +320,10 @@ public:
       each row's M.value. */
   JSBSIM_API static void SolveFrictionRows(std::vector<FrictionRow>& rows, double dt);
 
-  /** A host's own solve of the aircraft's friction rows, as of rows several
-      aircraft share: it sets each row's M.value and returns true, or returns
-      false and SolveFrictionRows solves them alone. */
+  /** A host's own solve of the aircraft's friction rows in a step of dt > 0,
+      as of rows several aircraft share, all of them stepping dt: it sets each
+      row's M.value and returns true, or returns false and SolveFrictionRows
+      solves them alone. Held, held down or with no rows, it is not asked. */
   using FrictionSolver = std::function<bool(std::vector<FrictionRow>& rows, double dt)>;
   void SetFrictionSolver(FrictionSolver solver) { frictionSolver = std::move(solver); }
 

@@ -425,8 +425,9 @@ void FGAccelerations::CalculateFrictionForces(double dt)
     }
   }
 
-  // A host's solve first, as of rows several aircraft share; else this one.
-  if (!(frictionSolver && frictionSolver(rows, dt)))
+  // A host's solve first, as of rows several aircraft share, in a step only:
+  // out of one, as in a trim, they balance this aircraft's derivatives alone.
+  if (!(dt > 0. && frictionSolver && frictionSolver(rows, dt)))
     SolveFrictionRows(rows, dt);
 
   // Calculate the total friction forces and moments
