@@ -12,6 +12,8 @@ using namespace JSBSim;
 constexpr double FGAccelerationsTest_MassSlug = 1.0;
 constexpr double FGAccelerationsTest_SlideFtps = 1.0;
 constexpr double FGAccelerationsTest_Dt = 1.0 / 120.0;
+// A push no solve of the rows below gives, lbs: chosen.
+constexpr double FGAccelerationsTest_HostLbs = 7.0;
 
 class FGAccelerationsTest : public CxxTest::TestSuite
 {
@@ -134,6 +136,49 @@ public:
     TS_ASSERT_THROWS(SolveStill({&broken}), BaseException&);
   }
 
+  // A host that solves the rows sets their pushes; one that declines leaves
+  // them to the projected Gauss-Seidel, as with no host.
+  void testHostSolvesTheRows() {
+    LagrangeMultiplier row{{1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, -1E9, 1E9, 0.0};
+    const double alone = Slide({&row}, FGPropagate::eRectEuler, 1, FGAccelerationsTest_SlideFtps)[0];
+    row.value = 0.0;
+    TS_ASSERT_EQUALS(Slide({&row}, FGPropagate::eRectEuler, 1, FGAccelerationsTest_SlideFtps,
+                           [](std::vector<FGAccelerations::FrictionRow>&, double) { return false; })[0], alone);
+    row.value = 0.0;
+    TS_ASSERT_EQUALS(Slide({&row}, FGPropagate::eRectEuler, 1, FGAccelerationsTest_SlideFtps,
+                           [](std::vector<FGAccelerations::FrictionRow>& rows, double) {
+                             rows[0].M.value = FGAccelerationsTest_HostLbs;
+                             return true;
+                           })[0], FGAccelerationsTest_HostLbs);
+  }
+
+  // Two aircraft's rows solved together keep each aircraft's push its own: a
+  // row of each on a body of its own pushes as it does alone. On one body of
+  // the aircraft's mass, which gives to both, each pushes 2/3 of that.
+  void testTwoAircraftsRowsSolvedTogether() {
+    LagrangeMultiplier row{{1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, -1E9, 1E9, 0.0};
+    row.Other = 1;
+    row.Give[0] = 1.0/sqrt(FGAccelerationsTest_MassSlug);
+    std::vector<FGAccelerations::FrictionRow> taken;
+    const double alone = Slide({&row}, FGPropagate::eRectEuler, 1, FGAccelerationsTest_SlideFtps,
+                               [&taken](std::vector<FGAccelerations::FrictionRow>& rows, double) {
+                                 taken = rows;
+                                 return false;
+                               })[0];
+    std::vector<FGAccelerations::FrictionRow> both{taken[0], taken[0]};
+    both[1].Part = 1;
+    both[1].M.Other = 2;
+    FGAccelerations::SolveFrictionRows(both, FGAccelerationsTest_Dt);
+    TS_ASSERT_DELTA(both[0].M.value, alone, 1E-4);
+    TS_ASSERT_DELTA(both[1].M.value, alone, 1E-4);
+
+    both = {taken[0], taken[0]};
+    both[1].Part = 1;
+    FGAccelerations::SolveFrictionRows(both, FGAccelerationsTest_Dt);
+    TS_ASSERT_DELTA(both[0].M.value, 2.0/3.0*alone, 1E-4);
+    TS_ASSERT_DELTA(both[1].M.value, 2.0/3.0*alone, 1E-4);
+  }
+
 private:
   // The accelerations of a still aircraft whose rows are rows, Euler's step.
   std::shared_ptr<FGAccelerations> SolveStill(const std::vector<LagrangeMultiplier*>& rows) {
@@ -165,10 +210,12 @@ private:
   // Each step's push of rows' first on an aircraft sliding along X at
   // slideFtps, its translational rates integrated by scheme, solved steps
   // times as if each step left it as it was, its derivatives pushed into the
-  // past as FGPropagate pushes them.
-  std::vector<double> Slide(const std::vector<LagrangeMultiplier*>& rows, int scheme, int steps, double slideFtps) {
+  // past as FGPropagate pushes them; by host, if one is given.
+  std::vector<double> Slide(const std::vector<LagrangeMultiplier*>& rows, int scheme, int steps, double slideFtps,
+                            FGAccelerations::FrictionSolver host = nullptr) {
     FGFDMExec fdmex;
     auto accelerations = fdmex.GetAccelerations();
+    accelerations->SetFrictionSolver(host);
     std::vector<LagrangeMultiplier*> list = rows;
     FGAccelerations::Inputs& in = accelerations->in;
     in.J = in.Jinv = in.Ti2b = in.Tb2i = in.Tec2b = in.Tec2i = FGMatrix33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
