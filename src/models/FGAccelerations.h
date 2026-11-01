@@ -38,6 +38,9 @@ SENTRY
 INCLUDES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
+#include <functional>
+#include <vector>
+
 #include "models/FGModel.h"
 #include "math/FGColumnVector3.h"
 #include "math/LagrangeMultiplier.h"
@@ -297,6 +300,32 @@ public:
   const FGColumnVector3& GetPseudoUVWi(void) const { return vPseudoUVWi; }
   const FGColumnVector3& GetPseudoPQRi(void) const { return vPseudoPQRi; }
 
+  /** A friction row as the projected Gauss-Seidel takes it, the rows' matrix
+      never formed: how a unit of its value moves its own speed through its
+      aircraft and the bodies it names. */
+  struct FrictionRow {
+    LagrangeMultiplier M; // its value is where the solve starts, and its answer
+    FGColumnVector3 RxU;  // LeverArm x ForceJacobian, ft
+    FGColumnVector3 V1;   // its aircraft's acceleration per lbs of value, 1/slug
+    FGColumnVector3 V2;   // its angular acceleration per lbs of value, rad/(slug ft)
+    double Diag = 0.;     // the row's own speed per lbs of its value, 1/slug
+    double Rhs = 0.;      // how much its speed has to change, ft/s^2
+    int Normal = -1;      // the row of these whose push bounds it, none if -1
+    size_t Part = 0;      // its aircraft, of those solved together
+  };
+
+  /** The rows solved by the projected Gauss-Seidel over the pushes their
+      values add up to, each aircraft's by its Part and each body's, in place
+      of their matrix: a sweep costs as the rows do, not as their square. Sets
+      each row's M.value. */
+  JSBSIM_API static void SolveFrictionRows(std::vector<FrictionRow>& rows, double dt);
+
+  /** A host's own solve of the aircraft's friction rows, as of rows several
+      aircraft share: it sets each row's M.value and returns true, or returns
+      false and SolveFrictionRows solves them alone. */
+  using FrictionSolver = std::function<bool(std::vector<FrictionRow>& rows, double dt)>;
+  void SetFrictionSolver(FrictionSolver solver) { frictionSolver = std::move(solver); }
+
   /** Retrieves the weight applied on the body.
       Retrieves the weight applied on the body i.e. the force that results from
       the gravity applied to the body mass.
@@ -384,6 +413,8 @@ private:
   FGColumnVector3 vPseudoUVWi, vPseudoPQRi;
 
   bool gravTorque;
+  // Last: a host built with the headers before it finds the members above where they were.
+  FrictionSolver frictionSolver;
 
   void CalculatePQRdot(void);
   void CalculateUVWdot(void);
