@@ -311,7 +311,7 @@ public:
     double Diag = 0.;     // the row's own speed per lbs of its value, 1/slug
     double Rhs = 0.;      // how much its speed has to change, ft/s^2
     int Normal = -1;      // the row of these whose push bounds it, none if -1
-    size_t Part = 0;      // its aircraft, of those solved together
+    size_t Part = 0;      // its aircraft's index, from 0, of those solved together
   };
 
   /** The rows solved by the projected Gauss-Seidel over the pushes their

@@ -429,6 +429,11 @@ void FGAccelerations::CalculateFrictionForces(double dt)
   // out of one, as in a trim, they balance this aircraft's derivatives alone.
   if (!(dt > 0. && frictionSolver && frictionSolver(rows, dt)))
     SolveFrictionRows(rows, dt);
+  if (rows.size() != n) {
+    LogException err;
+    err << "A host's friction solve answered for other rows than this aircraft's!";
+    throw err;
+  }
 
   // Calculate the total friction forces and moments
 
