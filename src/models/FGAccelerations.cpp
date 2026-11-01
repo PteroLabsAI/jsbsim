@@ -258,19 +258,24 @@ namespace {
 constexpr int PGSMaxIterations = 500;
 constexpr double PGSTolerance = 1E-6;
 
+// The bodies a row names besides the aircraft (LagrangeMultiplier::Other and
+// Other2), and the coordinates of a body's give.
+constexpr size_t RowBodies = 2;
+constexpr size_t Dofs = std::extent_v<decltype(LagrangeMultiplier::Give)>;
+
 // How the bodies rows i and j both push move them together: the dot products
 // of their Give on each such body.
 double SharedGive(const LagrangeMultiplier& i, const LagrangeMultiplier& j)
 {
-  const std::uint64_t iOthers[2] = {i.Other, i.Other2};
-  const std::uint64_t jOthers[2] = {j.Other, j.Other2};
-  const double* iGives[2] = {i.Give, i.Give2};
-  const double* jGives[2] = {j.Give, j.Give2};
+  const std::uint64_t iOthers[RowBodies] = {i.Other, i.Other2};
+  const std::uint64_t jOthers[RowBodies] = {j.Other, j.Other2};
+  const double* iGives[RowBodies] = {i.Give, i.Give2};
+  const double* jGives[RowBodies] = {j.Give, j.Give2};
   double give = 0.;
-  for (int p = 0; p < 2; p++)
-    for (int q = 0; q < 2; q++)
+  for (size_t p = 0; p < RowBodies; p++)
+    for (size_t q = 0; q < RowBodies; q++)
       if (iOthers[p] && iOthers[p] == jOthers[q])
-        for (int k = 0; k < 6; k++)
+        for (size_t k = 0; k < Dofs; k++)
           give += iGives[p][k]*jGives[q][k];
   return give;
 }
@@ -300,11 +305,6 @@ FrictionRow RowOf(const LagrangeMultiplier& m, double mass, const FGMatrix33& Ji
   row.Diag = DotProduct(row.V1, m.ForceJacobian) + DotProduct(row.V2, row.RxU) + SharedGive(m, m);
   return row;
 }
-
-// The bodies a row names besides the aircraft (LagrangeMultiplier::Other and
-// Other2), and the coordinates of a body's give.
-constexpr size_t RowBodies = 2;
-constexpr size_t Dofs = std::extent_v<decltype(LagrangeMultiplier::Give)>;
 
 // The projected Gauss-Seidel over the pushes the rows' values add up to, the
 // aircraft's and each body's, in place of their matrix: a sweep costs as the
