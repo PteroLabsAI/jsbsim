@@ -118,6 +118,11 @@ bool FGAccelerations::Run(bool Holding)
 
   if (!FDMExec->GetHoldDown())
     CalculateFrictionForces(in.DeltaT * rate);  // Update rate derivatives with friction forces
+  else {
+    // Held down, no row is solved, and none asks the position a move.
+    vPseudoUVWi.InitMatrix();
+    vPseudoPQRi.InitMatrix();
+  }
 
   Debug(2);
   return false;
