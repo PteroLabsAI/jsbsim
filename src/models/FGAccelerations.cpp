@@ -280,38 +280,25 @@ double SharedGive(const LagrangeMultiplier& i, const LagrangeMultiplier& j)
   return give;
 }
 
-// A row as the projected Gauss-Seidel takes it, the rows' matrix never formed:
-// how a unit of its value moves its own speed through the aircraft and the
-// bodies it names.
-struct FrictionRow {
-  LagrangeMultiplier M; // its value is where the solve starts, and its answer
-  FGColumnVector3 RxU;  // LeverArm x ForceJacobian, ft
-  FGColumnVector3 V1;   // the aircraft's acceleration per lbs of value, 1/slug
-  FGColumnVector3 V2;   // its angular acceleration per lbs of value, rad/(slug ft)
-  double Diag = 0.;     // the row's own speed per lbs of its value, 1/slug
-  double Rhs = 0.;      // how much its speed has to change, ft/s^2
-  int Normal = -1;      // the row of these whose push bounds it, none if -1
-};
-
 // Row m, the aircraft's response to it weighted as its schemes take a step's
 // derivatives.
-FrictionRow RowOf(const LagrangeMultiplier& m, double mass, const FGMatrix33& Jinv,
-                  double translationWeight, double rotationWeight)
+FGAccelerations::FrictionRow RowOf(const LagrangeMultiplier& m, double mass, const FGMatrix33& Jinv,
+                                   double translationWeight, double rotationWeight)
 {
-  FrictionRow row{m};
+  FGAccelerations::FrictionRow row{m};
   row.RxU = m.LeverArm * m.ForceJacobian;
   row.V1 = translationWeight * m.ForceJacobian / mass;
   row.V2 = rotationWeight * (Jinv * row.RxU); // Should be J^-T but J is symmetric and so is J^-1
   row.Diag = DotProduct(row.V1, m.ForceJacobian) + DotProduct(row.V2, row.RxU) + SharedGive(m, m);
   return row;
 }
+}
 
-// The projected Gauss-Seidel over the pushes the rows' values add up to, the
-// aircraft's and each body's, in place of their matrix: a sweep costs as the
-// rows do, not as their square.
-void SolveFrictionRows(vector<FrictionRow>& rows, double dt)
+void FGAccelerations::SolveFrictionRows(vector<FrictionRow>& rows, double dt)
 {
   const size_t n = rows.size();
+  size_t parts = 0;
+  for (const FrictionRow& row : rows) parts = max(parts, row.Part + 1);
   vector<std::uint64_t> bodies;
   vector<int> bodyAt(RowBodies*n, -1);
   for (size_t i=0; i < n; i++) {
@@ -323,14 +310,14 @@ void SolveFrictionRows(vector<FrictionRow>& rows, double dt)
       if (known == bodies.end()) bodies.push_back(others[p]);
     }
   }
-  // The aircraft's push, lbs and lbs ft, and each body's in its mass-weighted
+  // Each aircraft's push, lbs and lbs ft, and each body's in its mass-weighted
   // coordinates (LagrangeMultiplier::Give).
-  FGColumnVector3 force, moment;
+  vector<FGColumnVector3> force(parts), moment(parts);
   vector<double> pushed(Dofs*bodies.size(), 0.);
   const auto push = [&](size_t i, double by) {
     const FrictionRow& row = rows[i];
-    force += by * row.M.ForceJacobian;
-    moment += by * row.RxU;
+    force[row.Part] += by * row.M.ForceJacobian;
+    moment[row.Part] += by * row.RxU;
     const double* gives[RowBodies] = {row.M.Give, row.M.Give2};
     for (size_t p = 0; p < RowBodies; p++)
       if (bodyAt[RowBodies*i+p] >= 0)
@@ -339,7 +326,7 @@ void SolveFrictionRows(vector<FrictionRow>& rows, double dt)
   // Row i's speed: its line of the matrix times the values.
   const auto speed = [&](size_t i) {
     const FrictionRow& row = rows[i];
-    double s = DotProduct(row.V1, force) + DotProduct(row.V2, moment);
+    double s = DotProduct(row.V1, force[row.Part]) + DotProduct(row.V2, moment[row.Part]);
     const double* gives[RowBodies] = {row.M.Give, row.M.Give2};
     for (size_t p = 0; p < RowBodies; p++)
       if (bodyAt[RowBodies*i+p] >= 0)
@@ -372,7 +359,6 @@ void SolveFrictionRows(vector<FrictionRow>& rows, double dt)
     }
     if (moved < PGSTolerance) break;
   }
-}
 }
 
 void FGAccelerations::CalculateFrictionForces(double dt)
@@ -439,7 +425,15 @@ void FGAccelerations::CalculateFrictionForces(double dt)
     }
   }
 
-  SolveFrictionRows(rows, dt);
+  // A host's solve first, as of rows several aircraft share, in a step only:
+  // out of one, as in a trim, they balance this aircraft's derivatives alone.
+  if (!(dt > 0. && frictionSolver && frictionSolver(rows, dt)))
+    SolveFrictionRows(rows, dt);
+  if (rows.size() != n) {
+    LogException err;
+    err << "A host's friction solve answered for other rows than this aircraft's!";
+    throw err;
+  }
 
   // Calculate the total friction forces and moments
 
