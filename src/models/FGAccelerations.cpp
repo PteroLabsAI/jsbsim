@@ -301,6 +301,11 @@ FrictionRow RowOf(const LagrangeMultiplier& m, double mass, const FGMatrix33& Ji
   return row;
 }
 
+// The bodies a row names besides the aircraft (LagrangeMultiplier::Other and
+// Other2), and the coordinates of a body's give.
+constexpr size_t RowBodies = 2;
+constexpr size_t Dofs = std::extent_v<decltype(LagrangeMultiplier::Give)>;
+
 // The projected Gauss-Seidel over the pushes the rows' values add up to, the
 // aircraft's and each body's, in place of their matrix: a sweep costs as the
 // rows do, not as their square.
@@ -308,37 +313,37 @@ void SolveFrictionRows(vector<FrictionRow>& rows, double dt)
 {
   const size_t n = rows.size();
   vector<std::uint64_t> bodies;
-  vector<int> bodyAt(2*n, -1);
+  vector<int> bodyAt(RowBodies*n, -1);
   for (size_t i=0; i < n; i++) {
-    const std::uint64_t others[2] = {rows[i].M.Other, rows[i].M.Other2};
-    for (int p = 0; p < 2; p++) {
+    const std::uint64_t others[RowBodies] = {rows[i].M.Other, rows[i].M.Other2};
+    for (size_t p = 0; p < RowBodies; p++) {
       if (!others[p]) continue;
       const auto known = find(bodies.begin(), bodies.end(), others[p]);
-      bodyAt[2*i+p] = static_cast<int>(known - bodies.begin());
+      bodyAt[RowBodies*i+p] = static_cast<int>(known - bodies.begin());
       if (known == bodies.end()) bodies.push_back(others[p]);
     }
   }
   // The aircraft's push, lbs and lbs ft, and each body's in its mass-weighted
   // coordinates (LagrangeMultiplier::Give).
   FGColumnVector3 force, moment;
-  vector<double> pushed(6*bodies.size(), 0.);
+  vector<double> pushed(Dofs*bodies.size(), 0.);
   const auto push = [&](size_t i, double by) {
     const FrictionRow& row = rows[i];
     force += by * row.M.ForceJacobian;
     moment += by * row.RxU;
-    const double* gives[2] = {row.M.Give, row.M.Give2};
-    for (int p = 0; p < 2; p++)
-      if (bodyAt[2*i+p] >= 0)
-        for (int k = 0; k < 6; k++) pushed[6*bodyAt[2*i+p]+k] += by * gives[p][k];
+    const double* gives[RowBodies] = {row.M.Give, row.M.Give2};
+    for (size_t p = 0; p < RowBodies; p++)
+      if (bodyAt[RowBodies*i+p] >= 0)
+        for (size_t k = 0; k < Dofs; k++) pushed[Dofs*bodyAt[RowBodies*i+p]+k] += by * gives[p][k];
   };
   // Row i's speed: its line of the matrix times the values.
   const auto speed = [&](size_t i) {
     const FrictionRow& row = rows[i];
     double s = DotProduct(row.V1, force) + DotProduct(row.V2, moment);
-    const double* gives[2] = {row.M.Give, row.M.Give2};
-    for (int p = 0; p < 2; p++)
-      if (bodyAt[2*i+p] >= 0)
-        for (int k = 0; k < 6; k++) s += gives[p][k] * pushed[6*bodyAt[2*i+p]+k];
+    const double* gives[RowBodies] = {row.M.Give, row.M.Give2};
+    for (size_t p = 0; p < RowBodies; p++)
+      if (bodyAt[RowBodies*i+p] >= 0)
+        for (size_t k = 0; k < Dofs; k++) s += gives[p][k] * pushed[Dofs*bodyAt[RowBodies*i+p]+k];
     return s;
   };
   for (size_t i=0; i < n; i++) push(i, rows[i].M.value);
@@ -407,7 +412,8 @@ void FGAccelerations::CalculateFrictionForces(double dt)
 
   vector<FrictionRow> rows;
   rows.reserve(n);
-  for (const LagrangeMultiplier* m : multipliers) {
+  for (size_t i=0; i < n; i++) {
+    const LagrangeMultiplier* m = multipliers[i];
     FrictionRow& row = rows.emplace_back(RowOf(*m, in.Mass, in.Jinv, translation.Weight, rotation.Weight));
     // Not a number too: a body's give or the aircraft's mass gone bad.
     if (!(row.Diag > 0.)) {
@@ -415,12 +421,14 @@ void FGAccelerations::CalculateFrictionForces(double dt)
       err << "A friction row moves neither the aircraft nor a body it names, or not by a number!";
       throw err;
     }
-    // How much the row's speed has to change.
     row.Rhs = -DotProduct(m->ForceJacobian, vdot + wdot*m->LeverArm);
     if (dt > 0.) // Holds the contact at the speed of the face it pushes
       row.Rhs += m->Bias/dt;
     if (m->Normal) {
-      const auto normal = find(multipliers.begin(), multipliers.end(), m->Normal);
+      // Looked for back from the row first: a gear and a host list a normal
+      // just before its rows.
+      const auto back = find(make_reverse_iterator(multipliers.begin() + i), multipliers.rend(), m->Normal);
+      const auto normal = back != multipliers.rend() ? back.base() - 1 : find(multipliers.begin() + i, multipliers.end(), m->Normal);
       if (normal != multipliers.end())
         row.Normal = static_cast<int>(normal - multipliers.begin());
       else {
@@ -461,7 +469,7 @@ void FGAccelerations::CalculateFrictionForces(double dt)
 // the speed it met it.
 void FGAccelerations::SolvePositionBias(double dt)
 {
-  vector<FrictionRow> rows;
+  vector<const LagrangeMultiplier*> pushers;
   bool asked = false;
   for (const LagrangeMultiplier* m : *in.MultipliersList) {
     const bool pushes = !m->Normal && m->Min == 0. && m->Max == numeric_limits<double>::max() && m->ForceJacobian.Magnitude() > 0.;
@@ -472,14 +480,20 @@ void FGAccelerations::SolvePositionBias(double dt)
       throw err;
     }
     if (!pushes) continue;
+    pushers.push_back(m);
+    asked = asked || m->PositionBias > 0.;
+  }
+  if (!asked) return;
+
+  vector<FrictionRow> rows;
+  rows.reserve(pushers.size());
+  for (const LagrangeMultiplier* m : pushers) {
     // From rest, hard, the position taking no scheme's weight.
     FrictionRow& row = rows.emplace_back(RowOf(*m, in.Mass, in.Jinv, 1., 1.));
     row.M.value = 0.;
     row.M.Compliance[0] = row.M.Compliance[1] = 0.;
     row.Rhs = m->PositionBias/dt;
-    asked = asked || m->PositionBias > 0.;
   }
-  if (!asked) return;
 
   SolveFrictionRows(rows, dt);
 
