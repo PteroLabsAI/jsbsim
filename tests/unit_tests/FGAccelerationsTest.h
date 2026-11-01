@@ -173,6 +173,17 @@ public:
     TS_ASSERT(!offered);
   }
 
+  // A host that answers for other rows than it was given throws, as a row of
+  // no positive diagonal does.
+  void testHostChangingTheRowsThrows() {
+    LagrangeMultiplier row{{1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, -1E9, 1E9, 0.0};
+    TS_ASSERT_THROWS(Slide({&row}, FGPropagate::eRectEuler, 1, FGAccelerationsTest_SlideFtps,
+                           [](std::vector<FGAccelerations::FrictionRow>& rows, double) {
+                             rows.clear();
+                             return true;
+                           }), BaseException&);
+  }
+
   // Two aircraft's rows solved together keep each aircraft's push its own: a
   // row of each on a body of its own pushes as it does alone. On one body of
   // the aircraft's mass, which gives to both, each pushes 2/3 of that.
