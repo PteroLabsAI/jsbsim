@@ -69,8 +69,10 @@ CLASS DOCUMENTATION
     The Milspec and Tustin models are described in the Yeager report cited
     below.  They both use a Dryden spectrum model whose parameters (scale
     lengths and intensities) are modelled according to MIL-F-8785C. Parameters
-    are modelled differently for altitudes below 1000ft and above 2000ft, for
-    altitudes in between they are interpolated linearly.
+    are modelled differently for heights above the ground below 1000ft and
+    above 2000ft, for heights in between they are interpolated linearly. The
+    severity table of Fig.&nbsp;7 is read at the altitude above sea level. The
+    height follows the ground at a limited rate, between 10ft and 2000ft.
 
     The two models differ in the implementation of the transfer functions
     described in the milspec.
@@ -394,6 +396,7 @@ private:
   double xi_w_km1, xi_w_km2, nu_w_km1, nu_w_km2;
   double xi_p_km1, nu_p_km1;
   double xi_q_km1, xi_r_km1;
+  double turbulenceHeight; // above the ground, rate limited: a RunIC sets it outright, unless held
 
   double psiw;
   FGColumnVector3 vTotalWindNED;
