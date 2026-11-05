@@ -107,4 +107,31 @@ class TestTurbulenceTustin(JSBSimTestCase):
 
         return math.sqrt(sum_w2/n)
 
+    def testRunICWithAirspeed(self):
+        TUSTIN = 4  # enum tType in FGWinds.h
+        H_SL_FT = 2800  # chosen: as runFreeFlight
+        VC_KTS = 74  # chosen: as runFreeFlight
+        SEVERITY = 4  # "moderate" in the table of FGWinds.h
+        FLIGHT_S = 1  # chosen: any flight draws turbulence at once
+
+        fdm = self.create_fdm()
+        fdm.load_model('c172p')
+        fdm['ic/h-sl-ft'] = H_SL_FT
+        fdm['ic/vc-kts'] = VC_KTS
+        fdm['atmosphere/turbulence/milspec/severity'] = SEVERITY
+        fdm['atmosphere/turb-type'] = TUSTIN
+
+        fdm.run_ic()
+        self.checkTurbulenceAndVelocityFinite(fdm)
+        while fdm.get_sim_time() < FLIGHT_S:
+            fdm.run()
+        self.checkTurbulenceAndVelocityFinite(fdm)
+        for axis in ('north', 'east', 'down'):
+            self.assertNotEqual(fdm[f'atmosphere/turb-{axis}-fps'], 0.0)
+
+    def checkTurbulenceAndVelocityFinite(self, fdm):
+        for name in ('atmosphere/turb-north-fps', 'atmosphere/turb-east-fps',
+                     'atmosphere/turb-down-fps', 'velocities/vt-fps'):
+            self.assertTrue(math.isfinite(fdm[name]), name)
+
 RunTest(TestTurbulenceTustin)
