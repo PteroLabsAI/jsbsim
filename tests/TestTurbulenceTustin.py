@@ -28,22 +28,62 @@ class TestTurbulenceTustin(JSBSimTestCase):
     # altitude, interpolated as in FGWinds. The aircraft only descends from there,
     # so 2*SIGMA_W bounds the whole run.
     SIGMA_W = 10.125  # ft/s
+    FREE_FLIGHT_H_SL_FT = 2800  # chosen: the altitude SIGMA_W is read at
+    FREE_FLIGHT_SEED = 1  # chosen
+    # enum tType in FGWinds.h
+    TT_NONE, TT_MILSPEC, TT_TUSTIN = 0, 3, 4
 
     def testFreeFlightIntensity(self):
-        for turb_type in (3, 4):  # Milspec, Tustin
+        for turb_type in (self.TT_MILSPEC, self.TT_TUSTIN):
             for dt in (1/120, 1/1000):
                 with self.subTest(turb_type=turb_type, dt=dt):
                     w_rms = self.runFreeFlight(turb_type, dt)
                     self.assertLess(w_rms, 2.0*self.SIGMA_W)
 
-    def runFreeFlight(self, turb_type, dt):
+    # Measured over seeds 1 to 64 without the fix: the last Milspec draw sets the kick,
+    # 0.6 to 26 times the cold peak, so one seed can miss it. A plain range, not picked
+    # seeds, because each standard library draws another stream.
+    MODEL_CHANGE_SEEDS = (1, 2, 3, 4)
+    MODEL_CHANGE_H_SL_FT = 5000  # chosen: where the run-away was measured
+    MODEL_CHANGE_DT = 1/240  # chosen: the time step of that measurement
+    BEFORE_CHANGE_S = 60  # chosen: longer than the time constant L_w/V of about 12 s
+    AFTER_CHANGE_S = 30  # measured: the run-away peaks about 7 s after the change
+    # Measured over those 64 seeds: at most 2.2 with the fix, median 6.7 without it.
+    PEAK_OVER_COLD = 3
+
+    def testModelChange(self):
+        for seed in self.MODEL_CHANGE_SEEDS:
+            for before, after in (((self.TT_MILSPEC,), self.TT_TUSTIN),
+                                  ((self.TT_MILSPEC, self.TT_NONE), self.TT_TUSTIN),
+                                  ((self.TT_TUSTIN,), self.TT_MILSPEC)):
+                with self.subTest(seed=seed, before=before, after=after):
+                    cold_peak = self.peakTurbDown(seed, (self.TT_NONE,), after)
+                    self.assertLess(self.peakTurbDown(seed, before, after), self.PEAK_OVER_COLD*cold_peak)
+
+    def peakTurbDown(self, seed, before, after):
+        fdm = self.startFreeFlight(seed, self.MODEL_CHANGE_H_SL_FT, self.MODEL_CHANGE_DT)
+        for turb_type in before:
+            fdm['atmosphere/turb-type'] = turb_type
+            t_end = fdm.get_sim_time() + self.BEFORE_CHANGE_S
+            while fdm.get_sim_time() < t_end:
+                fdm.run()
+
+        fdm['atmosphere/turb-type'] = after
+        peak = 0.0
+        t_end = fdm.get_sim_time() + self.AFTER_CHANGE_S
+        while fdm.get_sim_time() < t_end:
+            fdm.run()
+            peak = max(peak, abs(fdm['atmosphere/turb-down-fps']))
+        return peak
+
+    def startFreeFlight(self, seed, h_sl_ft, dt):
         fdm = self.create_fdm()
-        fdm['simulation/randomseed'] = 1
+        fdm['simulation/randomseed'] = seed
         fdm.load_model('c172p')
         fdm.set_dt(dt)
 
         # No trim and no autopilot: the aircraft descends by about 1000 ft/min.
-        fdm['ic/h-sl-ft'] = 2800
+        fdm['ic/h-sl-ft'] = h_sl_ft
         fdm['ic/vc-kts'] = 74
         fdm['ic/gamma-deg'] = 0
         fdm['propulsion/engine[0]/set-running'] = 1
@@ -52,6 +92,10 @@ class TestTurbulenceTustin(JSBSimTestCase):
         fdm['fcs/mixture-cmd-norm'] = 1.0
 
         fdm['atmosphere/turbulence/milspec/severity'] = 4
+        return fdm
+
+    def runFreeFlight(self, turb_type, dt):
+        fdm = self.startFreeFlight(self.FREE_FLIGHT_SEED, self.FREE_FLIGHT_H_SL_FT, dt)
         fdm['atmosphere/turb-type'] = turb_type
 
         sum_w2 = 0.0
