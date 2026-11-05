@@ -132,13 +132,29 @@ bool FGWinds::InitModel(void)
   oneMinusCosineGust.gustProfile.Running = false;
   oneMinusCosineGust.gustProfile.elapsedTime = 0.0;
 
+  ResetTurbulenceFilters();
+
+  return true;
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+void FGWinds::ResetTurbulenceFilters(void)
+{
   xi_u_km1 = nu_u_km1 = 0;
   xi_v_km1 = xi_v_km2 = nu_v_km1 = nu_v_km2 = 0;
   xi_w_km1 = xi_w_km2 = nu_w_km1 = nu_w_km2 = 0;
   xi_p_km1 = nu_p_km1 = 0;
   xi_q_km1 = xi_r_km1 = 0;
+}
 
-  return true;
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+void FGWinds::SetTurbType(tType tt)
+{
+  // The Tustin filters take the state of another model for a huge rate and run away.
+  if (tt == ttTustin && tt != turbType) ResetTurbulenceFilters();
+  turbType = tt;
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

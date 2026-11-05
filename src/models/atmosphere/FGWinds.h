@@ -247,7 +247,7 @@ public:
 
   /** Turbulence models available: ttNone, ttStandard, ttBerndt, ttCulp,
       ttMilspec, ttTustin */
-  virtual void   SetTurbType(tType tt) {turbType = tt;}
+  virtual void   SetTurbType(tType tt);
   virtual tType  GetTurbType() const {return turbType;}
 
   virtual void   SetTurbGain(double tg) {TurbGain = tg;}
@@ -409,6 +409,7 @@ private:
   void SetRandomSeed(int sr);
   int  GetRandomSeed(void) const;
 
+  void ResetTurbulenceFilters(void);
   void Turbulence(double h);
   void UpDownBurst();
 
