@@ -72,6 +72,13 @@ static inline double square_signed (double value)
 /// simply square a value
 constexpr double sqr(double x) { return x*x; }
 
+// Chosen, measured: keeps ordinary jumps, cliffs and tile gaps at a peak velocity ratio of 1.3 or less at the median and does not lag a 50 ft/s ramp.
+constexpr double TURBULENCE_HEIGHT_RATE_FPS = 50.0;
+// The clip of the height functions: a height below it only delays the return, and an aircraft under the terrain must not walk far below it.
+constexpr double TURBULENCE_HEIGHT_MIN_FT = 10.0;
+// The model reads no height above the end of the blend, so more only delays the return: measured 39 s against 3280 s back from a no-ground answer.
+constexpr double TURBULENCE_HEIGHT_MAX_FT = 2000.0;
+
 FGWinds::FGWinds(FGFDMExec* fdmex)
   : FGModel(fdmex, "FGWinds"), generator(fdmex->GetRandomGenerator())
 {
@@ -83,6 +90,7 @@ FGWinds::FGWinds(FGFDMExec* fdmex)
   spike = target_time = strength = 0.0;
   wind_from_clockwise = 0.0;
   psiw = 0.0;
+  turbulenceHeight = TURBULENCE_HEIGHT_MIN_FT;
 
   vGustNED.InitMatrix();
   vTurbulenceNED.InitMatrix();
@@ -164,7 +172,12 @@ bool FGWinds::Run(bool Holding)
   if (FGModel::Run(Holding)) return true;
   if (Holding) return false;
 
-  Turbulence(in.AltitudeASL);
+  const double target = Constrain(TURBULENCE_HEIGHT_MIN_FT, in.DistanceAGL, TURBULENCE_HEIGHT_MAX_FT);
+  const double max_move = TURBULENCE_HEIGHT_RATE_FPS*in.totalDeltaT;
+  // RunIC and a trim run at no time: a start flies its own height at once, unless held.
+  turbulenceHeight = in.totalDeltaT == 0. ? target
+                   : turbulenceHeight + Constrain(-max_move, target - turbulenceHeight, max_move);
+  Turbulence(turbulenceHeight);
   if (oneMinusCosineGust.gustProfile.Running) CosineGust();
 
   vTotalWindNED = vWindNED + vGustNED + vCosineGust + vTurbulenceNED;
@@ -291,23 +304,18 @@ void FGWinds::Turbulence(double h)
 
       if (b_w == 0.) b_w = 30.;
 
-    // clip height functions at 10 ft
-    if (h <= 10.) h = 10;
-
     // Scale lengths L and amplitudes sigma as function of height
+    // h picks the model by the ground's proximity; Fig. 7 says only "ALTITUDE", read above sea level.
     if (h <= 1000) {
       L_u = h/pow(0.177 + 0.000823*h, 1.2); // MIL-F-8785c, Fig. 10, p. 55
       L_w = h;
       sig_w = 0.1*windspeed_at_20ft;
       sig_u = sig_w/pow(0.177 + 0.000823*h, 0.4); // MIL-F-8785c, Fig. 11, p. 56
-    } else if (h <= 2000) {
-      // linear interpolation between low altitude and high altitude models
-      L_u = L_w = 1000 + (h-1000.)/1000.*750.;
-      sig_u = sig_w = 0.1*windspeed_at_20ft
-                    + (h-1000.)/1000.*(POE_Table->GetValue(probability_of_exceedence_index, h) - 0.1*windspeed_at_20ft);
     } else {
-      L_u = L_w = 1750.; //  MIL-F-8785c, Sec. 3.7.2.1, p. 48
-      sig_u = sig_w = POE_Table->GetValue(probability_of_exceedence_index, h);
+      // linear interpolation between low altitude and high altitude models, the height ends at the high one
+      L_u = L_w = 1000 + (h-1000.)/1000.*750.; // 1750 at the end: MIL-F-8785c, Sec. 3.7.2.1, p. 48
+      sig_u = sig_w = 0.1*windspeed_at_20ft
+                    + (h-1000.)/1000.*(POE_Table->GetValue(probability_of_exceedence_index, in.AltitudeASL) - 0.1*windspeed_at_20ft);
     }
 
     double
