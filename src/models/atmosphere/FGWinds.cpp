@@ -314,6 +314,9 @@ void FGWinds::Turbulence(double h)
     // values of turbulence NED velocities
 
     if (turbType == ttTustin) {
+      // A step of no time moves no filter, and its coefficients are infinite.
+      if (T_V == 0.) return;
+
       // the following is the Tustin formulation of Yeager's report
       double
         omega_w = V/L_w, // hidden in nomenclature p. 3
