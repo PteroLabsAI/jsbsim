@@ -85,4 +85,31 @@ class TestTurbulenceRandomSeed(JSBSimTestCase):
 
         self.assertEqual(exec_seed, wind_seed)
 
+    CULP = 2  # enum tType in FGWinds.h
+    DONT_EXECUTE_RUN_IC = 2  # FGFDMExec.h: a host seeds and sets its ICs before its own RunIC
+    RESET_SEED = 1  # chosen: what a reset leaves behind shows on any seed
+    RESET_H_SL_FT = 5000  # chosen: high enough that the ground does not scale the gust
+    EPISODE_S = 5  # chosen: over the 1.21 s FGWinds can wait for its first gust
+
+    def testCulpRepeatsAfterReset(self):
+        fdm = self.create_fdm()
+        fdm.load_model('c172p')
+        new_fdm_trace = self.flyCulp(fdm)
+        fdm.reset_to_initial_conditions(self.DONT_EXECUTE_RUN_IC)
+        after_reset_trace = self.flyCulp(fdm)
+        for i in range(len(new_fdm_trace)):
+            self.assertEqual(after_reset_trace[i], new_fdm_trace[i], f'sample {i}')
+
+    def flyCulp(self, fdm):
+        fdm['simulation/randomseed'] = self.RESET_SEED
+        fdm['ic/h-sl-ft'] = self.RESET_H_SL_FT
+        fdm['atmosphere/turb-type'] = self.CULP
+        fdm.run_ic()
+
+        trace = []
+        while fdm.get_sim_time() < self.EPISODE_S:
+            fdm.run()
+            trace.append([fdm[f'atmosphere/turb-{axis}-fps'] for axis in ('north', 'east', 'down')])
+        return trace
+
 RunTest(TestTurbulenceRandomSeed)
