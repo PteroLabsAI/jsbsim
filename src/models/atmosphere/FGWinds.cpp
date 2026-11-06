@@ -131,6 +131,7 @@ bool FGWinds::InitModel(void)
   if (!FGModel::InitModel()) return false;
 
   psiw = 0.0;
+  spike = target_time = strength = 0.0;
 
   vGustNED.InitMatrix();
   vTurbulenceNED.InitMatrix();
