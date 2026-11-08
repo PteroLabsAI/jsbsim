@@ -75,7 +75,8 @@ set(PYTHON_TESTS ResetOutputFiles
                  TestRotorMomentum
                  TestFrictionIntegrators
                  TestResetAccelerations
-                 TestGroundTrimNaN)
+                 TestGroundTrimNaN
+                 TestFirstPassVRP)
 
 foreach(test ${PYTHON_TESTS})
   add_test(NAME ${test}
