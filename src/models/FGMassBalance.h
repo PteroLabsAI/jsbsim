@@ -139,6 +139,8 @@ public:
                      on a socket for the "Resume" command to be given.  @return
                      false if no error */
   bool Run(bool Holding) override;
+  /// Weight, mass and CG of the masses as they stand, the structure kept in place when held or on the ground, as Run does.
+  void UpdateMassAndCG(void);
 
   double GetMass(void) const {return Mass;}
   double GetWeight(void) const {return Weight;}

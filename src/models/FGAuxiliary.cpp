@@ -129,6 +129,8 @@ void FGAuxiliary::SetInitialState(const FGInitialCondition* ic)
 {
   NEUStartLocation = ic->GetPosition();
   NEUStartLocation.SetPositionGeodetic(NEUStartLocation.GetLongitude(), NEUStartLocation.GetGeodLatitudeRad(), 0.0);
+  // The systems run before Run places the VRP: their first pass reads it here.
+  vLocationVRP = in.vLocation.LocalToLocation(in.Tb2l * in.VRPBody);
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

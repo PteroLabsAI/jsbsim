@@ -97,6 +97,7 @@ bool FGAccelerations::InitModel(void)
   if (!FGModel::InitModel()) return false;
 
   vPQRidot.InitMatrix();
+  vPQRdot.InitMatrix();
   vUVWidot.InitMatrix();
   vUVWdot.InitMatrix();
   vBodyAccel.InitMatrix();

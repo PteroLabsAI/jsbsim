@@ -181,15 +181,9 @@ bool FGMassBalance::Load(Element* document)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bool FGMassBalance::Run(bool Holding)
+void FGMassBalance::UpdateMassAndCG(void)
 {
-  double denom, k1, k2, k3, k4, k5, k6;
-  double Ixx, Iyy, Izz, Ixy, Ixz, Iyz;
-
-  if (FGModel::Run(Holding)) return true;
-  if (Holding) return false;
-
-  RunPreFunctions();
+  if (!enabled) return;
 
   double ChildFDMWeight = 0.0;
   for (size_t fdm=0; fdm<FDMExec->GetFDMCount(); fdm++) {
@@ -219,6 +213,21 @@ bool FGMassBalance::Run(bool Holding)
   // is modified while the aircraft is in contact with the ground.
   if (FDMExec->GetHoldDown() || in.WOW)
     Propagate->NudgeBodyLocation(vDeltaXYZcgBody);
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+bool FGMassBalance::Run(bool Holding)
+{
+  double denom, k1, k2, k3, k4, k5, k6;
+  double Ixx, Iyy, Izz, Ixy, Ixz, Iyz;
+
+  if (FGModel::Run(Holding)) return true;
+  if (Holding) return false;
+
+  RunPreFunctions();
+
+  UpdateMassAndCG();
 
 // Calculate new total moments of inertia
 

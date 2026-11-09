@@ -690,6 +690,10 @@ void FGFDMExec::Initialize(const FGInitialCondition* FGIC)
 {
   Propagate->SetInitialState(FGIC);
   Winds->SetWindNED(FGIC->GetWindNEDFpsIC());
+  // The systems run before MassBalance and Auxiliary: place the CG and the VRP for them as those will.
+  LoadInputs(eMassBalance);
+  MassBalance->UpdateMassAndCG();
+  LoadInputs(eAuxiliary);
   Auxiliary->SetInitialState(FGIC);
   Run();
 }

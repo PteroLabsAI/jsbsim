@@ -435,6 +435,14 @@ void FGTrim::trimOnGround(void)
   if (contacts.size() < 3)
     return;
 
+  // A position or an attitude not finite gives no contact a height.
+  if (contactRef < 0) {
+    FGLogging log(LogLevel::WARN);
+    log << "FGTrim::trimOnGround: no contact point has a height, the trim is"
+        << " left as it is\n";
+    return;
+  }
+
   // Remove the contact point that is closest to the ground from the list:
   // the rotation axis will be going thru this point so we need to remove it
   // to avoid divisions by zero that could result from the computation of
@@ -455,9 +463,19 @@ void FGTrim::trimOnGround(void)
     + force * contact0;
   FGColumnVector3 rotationAxis = moment.Normalize();
 
+  // A rotation axis that is zero or not finite makes every angle NaN.
+  auto noContact = [&contacts](const RotationParameters& r) {
+    if (r.contactRef != contacts.end()) return false;
+    FGLogging log(LogLevel::WARN);
+    log << "FGTrim::trimOnGround: no rotation brings a contact point onto the"
+        << " ground, the orientation is left unchanged\n";
+    return true;
+  };
+
   // Compute the rotation parameters: angle and the first point to come into
   // contact with the ground when the rotation is applied.
   RotationParameters rParam = calcRotation(contacts, rotationAxis, contact0);
+  if (noContact(rParam)) return;
   FGQuaternion q0(rParam.angleMin, rotationAxis);
 
   // Apply the computed rotation to all the contact points
@@ -484,6 +502,7 @@ void FGTrim::trimOnGround(void)
 
   // Compute the rotation parameters
   rParam = calcRotation(contacts, rotationAxis, contact0);
+  if (noContact(rParam)) return;
   FGQuaternion q1(rParam.angleMin, rotationAxis);
 
   // Update the aircraft orientation
@@ -514,6 +533,7 @@ FGTrim::RotationParameters FGTrim::calcRotation(vector<ContactPoints>& contacts,
   vector<ContactPoints>::iterator iter;
 
   rParam.angleMin = 3.0 * M_PI;
+  rParam.contactRef = contacts.end();
 
   for (iter = contacts.begin(); iter != contacts.end(); ++iter) {
     // Below the processed contact point is named 'M'
