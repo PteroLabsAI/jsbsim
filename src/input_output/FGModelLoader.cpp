@@ -92,6 +92,6 @@ SGPath CheckPathName(const SGPath& path, const SGPath& filename) {
   if (fullName.extension() != "xml")
     fullName.concat(".xml");
 
-  return fullName.exists() ? fullName : SGPath();
+  return FGXMLFileRead::FileExists(fullName) ? fullName : SGPath();
 }
 }

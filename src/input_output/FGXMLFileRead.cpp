@@ -28,6 +28,10 @@
 INCLUDES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
+#include <atomic>
+#include <memory>
+#include <sstream>
+
 #include "FGXMLFileRead.h"
 #include "input_output/FGLog.h"
 #include "simgear/io/iostreams/sgstream.hxx"
@@ -38,31 +42,57 @@ namespace JSBSim {
 CLASS IMPLEMENTATION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
+static std::atomic<FileReader> hostReader{nullptr};
+
+static void AppendTo(void* text, const char* data, size_t size)
+{
+  static_cast<std::string*>(text)->append(data, size);
+}
+
+void FGXMLFileRead::SetFileReader(FileReader reader)
+{
+  hostReader = reader;
+}
+
+bool FGXMLFileRead::FileExists(const SGPath& path)
+{
+  const FileReader reader = hostReader;
+  return reader ? reader(path.utf8Str().c_str(), nullptr, nullptr)
+                : path.exists();
+}
+
 Element* FGXMLFileRead::LoadXMLDocument(const SGPath& XML_filename,
                                         FGXMLParse& fparse, bool verbose)
 {
-  sg_ifstream infile;
   SGPath filename(XML_filename);
-  if (!filename.isNull()) {
-    if (filename.extension().empty())
-      filename.concat(".xml");
-    infile.open(filename);
-    if ( !infile.is_open()) {
-      if (verbose) {
-        FGLogging log(LogLevel::ERROR);
-        log << "Could not open file: " << filename << "\n";
-      }
-      return nullptr;
-    }
-  } else {
+  if (filename.isNull()) {
     FGLogging log(LogLevel::ERROR);
     log << "No filename given.\n";
     return nullptr;
   }
-  readXML(infile, fparse, filename.utf8Str());
-  Element* document = fparse.GetDocument();
-  infile.close();
-  return document;
+  if (filename.extension().empty())
+    filename.concat(".xml");
+
+  std::unique_ptr<std::istream> input;
+  const FileReader reader = hostReader;
+  if (reader) {
+    std::string text;
+    if (reader(filename.utf8Str().c_str(), AppendTo, &text))
+      input = std::make_unique<std::istringstream>(std::move(text));
+  } else {
+    auto file = std::make_unique<sg_ifstream>(filename);
+    if (file->is_open())
+      input = std::move(file);
+  }
+  if (!input) {
+    if (verbose) {
+      FGLogging log(LogLevel::ERROR);
+      log << "Could not open file: " << filename << "\n";
+    }
+    return nullptr;
+  }
+  readXML(*input, fparse, filename.utf8Str());
+  return fparse.GetDocument();
 }
 
 } // end namespace JSBSim
