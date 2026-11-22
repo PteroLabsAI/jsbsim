@@ -41,7 +41,10 @@ scheme. */
 INCLUDES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
+#include <algorithm>
+#include <cmath>
 #include <iomanip>
+#include <iterator>
 #include "FGTrim.h"
 #include "models/FGInertial.h"
 #include "models/FGAccelerations.h"
@@ -119,6 +122,8 @@ void FGTrim::TrimStats() {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 void FGTrim::Report(void) {
+  if (total_its == 0) return;  // no axis has run
+
   FGLogging out(LogLevel::STDOUT);
   out << "  Trim Results:\n";
   for(unsigned int current_axis=0; current_axis<TrimAxes.size(); current_axis++)
@@ -193,6 +198,22 @@ bool FGTrim::EditState( State state, Control new_control ){
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 bool FGTrim::DoTrim(void) {
+  // One value per IC part the models read; theta and vt as well, since at a
+  // speed of 0 fast math would hide a NaN attitude or wind behind u.
+  const double start[] = {fgic.GetAltitudeASLFtIC(), fgic.GetAltitudeAGLFtIC(),
+                          fgic.GetThetaRadIC(), fgic.GetUBodyFpsIC(),
+                          fgic.GetVtrueFpsIC(), fgic.GetAlphaRadIC(),
+                          fgic.GetBetaRadIC(), fgic.GetPRadpsIC(),
+                          fgic.GetQRadpsIC(), fgic.GetRRadpsIC()};
+  const bool finite = std::all_of(std::begin(start), std::end(start),
+                                  [](double value) { return std::isfinite(value); });
+  if (!finite || (mode == tPullup && !std::isfinite(targetNlf))) {
+    FGLogging log(LogLevel::ERROR);
+    log << "  Trim failed: the initial conditions are not finite\n";
+    total_its = 0;  // no axis ran: Report prints none
+    return false;
+  }
+
   bool trim_failed=false;
   unsigned int N = 0;
   unsigned int axis_count = 0;
@@ -435,7 +456,7 @@ void FGTrim::trimOnGround(void)
   if (contacts.size() < 3)
     return;
 
-  // A position or an attitude not finite gives no contact a height.
+  // A ground callback that answers NaN at the contacts gives none a height.
   if (contactRef < 0) {
     FGLogging log(LogLevel::WARN);
     log << "FGTrim::trimOnGround: no contact point has a height, the trim is"
