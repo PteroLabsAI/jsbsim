@@ -44,10 +44,27 @@ FORWARD DECLARATIONS
 
 namespace JSBSim {
 
+/** A host's own source of the files JSBSim reads, such as an archive in
+    memory. It returns false when it has no file at utf8Path. Otherwise it
+    hands the content to sink(context, data, size), in one or more pieces, or
+    only answers that the file exists when sink is null. */
+using FileReader = bool (*)(const char* utf8Path,
+                            void (*sink)(void* context, const char* data,
+                                         size_t size),
+                            void* context);
+
 class JSBSIM_API FGXMLFileRead {
 public:
   FGXMLFileRead(void) {}
   ~FGXMLFileRead(void) {}
+
+  /** Every file JSBSim reads afterwards, and every check that one exists,
+      goes to reader instead of the disk; nullptr goes back to the disk. Set
+      it before any model loads. */
+  static void SetFileReader(FileReader reader);
+
+  /** Whether the file exists, asked of the host's reader when one is set. */
+  static bool FileExists(const SGPath& path);
 
   Element* LoadXMLDocument(const SGPath& XML_filename, bool verbose=true)
   {

@@ -23,7 +23,8 @@ set(UNIT_TESTS FGColumnVector3Test
                FGAccelerationsTest
                FGMSISTest
                FGLogTest
-               FGTrimTest)
+               FGTrimTest
+               FGXMLFileReadTest)
 
 
 foreach(test ${UNIT_TESTS})
