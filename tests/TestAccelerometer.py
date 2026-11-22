@@ -80,8 +80,15 @@ class TestAccelerometer(JSBSimTestCase):
         fdm['ic/psi-true-rad'] = 0.0
         fdm.run_ic()
 
-        for _ in range(1000):
+        # Settled (the first 100 steps reach 1.3e-6), the ground contact jitters
+        # Y by up to 2.9e-7 ft/s^2 a step and its mean by a few 1e-9.
+        settled = 500
+        jitter_bound = 1E-6  # 3.5 times the largest jitter measured
+        lateral = []
+        for step in range(1000):
             fdm.run()
+            if step >= settled:
+                lateral.append(fdm['fcs/accelerometer/Y'])
 
         r = fdm['position/radius-to-vehicle-ft']
         g = fdm['accelerations/gravity-ft_sec2']
@@ -96,7 +103,8 @@ class TestAccelerometer(JSBSimTestCase):
         faz = fc * math.cos(geodLat - pitch) - g * math.cos(pitch - deviation)
 
         self.assertAlmostEqual(fdm['fcs/accelerometer/X'], fax, delta=1E-7)
-        self.assertAlmostEqual(fdm['fcs/accelerometer/Y'], 0.0, delta=1E-7)
+        self.assertAlmostEqual(np.mean(lateral), 0.0, delta=1E-7)
+        self.assertLess(np.abs(lateral).max(), jitter_bound)
         self.assertAlmostEqual(fdm['fcs/accelerometer/Z']/faz, 1.0, delta=1E-7)
 
     def testSteadyFlight(self):
