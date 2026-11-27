@@ -223,9 +223,10 @@ public:
                                  taken = rows;
                                  return false;
                                })[0];
-    // The second's half: its own row there pushes it the other way.
+    // The second's half: its own row there pushes it the other way. Started at
+    // the push alone, the solve has to take half of it back through both halves.
     FGAccelerations::FrictionRow between = taken[0];
-    between.M.value = 0.0;
+    between.M.value = alone;
     between.Part2 = 1;
     between.ForceJacobian2 = -1.0 * between.M.ForceJacobian;
     between.RxU2 = -1.0 * between.RxU;
@@ -240,6 +241,7 @@ public:
     held.M.value = 0.0;
     held.Part = 1;
     held.Rhs = 0.0;
+    between.M.value = 0.0;
     both = {between, held};
     FGAccelerations::SolveFrictionRows(both, FGAccelerationsTest_Dt);
     TS_ASSERT_DELTA(both[0].M.value, alone, 1E-4);

@@ -323,7 +323,7 @@ public:
   };
 
   /** The rows solved by the projected Gauss-Seidel over the pushes their
-      values add up to, each aircraft's by its Part and each body's, in place
+      values add up to, each aircraft's by its Part and Part2 and each body's, in place
       of their matrix: a sweep costs as the rows do, not as their square. Sets
       each row's M.value. */
   JSBSIM_API static void SolveFrictionRows(std::vector<FrictionRow>& rows, double dt);
