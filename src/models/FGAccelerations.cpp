@@ -299,7 +299,10 @@ void FGAccelerations::SolveFrictionRows(vector<FrictionRow>& rows, double dt)
 {
   const size_t n = rows.size();
   size_t parts = 0;
-  for (const FrictionRow& row : rows) parts = max(parts, row.Part + 1);
+  for (const FrictionRow& row : rows) {
+    parts = max(parts, row.Part + 1);
+    if (row.Part2 >= 0) parts = max(parts, static_cast<size_t>(row.Part2) + 1);
+  }
   vector<std::uint64_t> bodies;
   vector<int> bodyAt(RowBodies*n, -1);
   for (size_t i=0; i < n; i++) {
@@ -319,6 +322,10 @@ void FGAccelerations::SolveFrictionRows(vector<FrictionRow>& rows, double dt)
     const FrictionRow& row = rows[i];
     force[row.Part] += by * row.M.ForceJacobian;
     moment[row.Part] += by * row.RxU;
+    if (row.Part2 >= 0) {
+      force[row.Part2] += by * row.ForceJacobian2;
+      moment[row.Part2] += by * row.RxU2;
+    }
     const double* gives[RowBodies] = {row.M.Give, row.M.Give2};
     for (size_t p = 0; p < RowBodies; p++)
       if (bodyAt[RowBodies*i+p] >= 0)
@@ -328,6 +335,8 @@ void FGAccelerations::SolveFrictionRows(vector<FrictionRow>& rows, double dt)
   const auto speed = [&](size_t i) {
     const FrictionRow& row = rows[i];
     double s = DotProduct(row.V1, force[row.Part]) + DotProduct(row.V2, moment[row.Part]);
+    if (row.Part2 >= 0)
+      s += DotProduct(row.V12, force[row.Part2]) + DotProduct(row.V22, moment[row.Part2]);
     const double* gives[RowBodies] = {row.M.Give, row.M.Give2};
     for (size_t p = 0; p < RowBodies; p++)
       if (bodyAt[RowBodies*i+p] >= 0)

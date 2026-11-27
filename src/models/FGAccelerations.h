@@ -312,10 +312,18 @@ public:
     double Rhs = 0.;      // how much its speed has to change, ft/s^2
     int Normal = -1;      // the row of these whose push bounds it, none if -1
     size_t Part = 0;      // its aircraft's index, from 0, of those solved together
+    // A row two of those aircraft both hold, as where they touch: the second's
+    // index, none if -1, and its half as its own row there has it. A host that
+    // sets it sets Diag and Rhs to both halves'.
+    int Part2 = -1;
+    FGColumnVector3 ForceJacobian2;
+    FGColumnVector3 RxU2;
+    FGColumnVector3 V12;
+    FGColumnVector3 V22;
   };
 
   /** The rows solved by the projected Gauss-Seidel over the pushes their
-      values add up to, each aircraft's by its Part and each body's, in place
+      values add up to, each aircraft's by its Part and Part2 and each body's, in place
       of their matrix: a sweep costs as the rows do, not as their square. Sets
       each row's M.value. */
   JSBSIM_API static void SolveFrictionRows(std::vector<FrictionRow>& rows, double dt);
