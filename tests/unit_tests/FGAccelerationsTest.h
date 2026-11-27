@@ -211,6 +211,41 @@ public:
     TS_ASSERT_DELTA(both[1].M.value, 2.0/3.0*alone, 1E-4);
   }
 
+  // A row two aircraft of the same mass both hold, as where they touch, holds
+  // the sliding one to the still one: free, each takes half the push it would
+  // alone, opposite; the still one held by a row of its own, the first takes all
+  // of it.
+  void testRowBetweenTwoAircraft() {
+    LagrangeMultiplier row{{1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, -1E9, 1E9, 0.0};
+    std::vector<FGAccelerations::FrictionRow> taken;
+    const double alone = Slide({&row}, FGPropagate::eRectEuler, 1, FGAccelerationsTest_SlideFtps,
+                               [&taken](std::vector<FGAccelerations::FrictionRow>& rows, double) {
+                                 taken = rows;
+                                 return false;
+                               })[0];
+    // The second's half: its own row there pushes it the other way.
+    FGAccelerations::FrictionRow between = taken[0];
+    between.M.value = 0.0;
+    between.Part2 = 1;
+    between.ForceJacobian2 = -1.0 * between.M.ForceJacobian;
+    between.RxU2 = -1.0 * between.RxU;
+    between.V12 = -1.0 * between.V1;
+    between.V22 = -1.0 * between.V2;
+    between.Diag = 2.0 * taken[0].Diag;
+    std::vector<FGAccelerations::FrictionRow> both{between};
+    FGAccelerations::SolveFrictionRows(both, FGAccelerationsTest_Dt);
+    TS_ASSERT_DELTA(both[0].M.value, 0.5*alone, 1E-4);
+
+    FGAccelerations::FrictionRow held = taken[0];
+    held.M.value = 0.0;
+    held.Part = 1;
+    held.Rhs = 0.0;
+    both = {between, held};
+    FGAccelerations::SolveFrictionRows(both, FGAccelerationsTest_Dt);
+    TS_ASSERT_DELTA(both[0].M.value, alone, 1E-4);
+    TS_ASSERT_DELTA(both[1].M.value, alone, 1E-4);
+  }
+
 private:
   // The accelerations of a still aircraft whose rows are rows, Euler's step.
   std::shared_ptr<FGAccelerations> SolveStill(const std::vector<LagrangeMultiplier*>& rows) {
