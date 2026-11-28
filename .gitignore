@@ -26,6 +26,7 @@ missing
 build*
 *.exe
 src/.libs/
+src/JSBSim_commit.h
 ./dotest
 *.patch
 *.diff

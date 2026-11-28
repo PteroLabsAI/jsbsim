@@ -232,6 +232,11 @@
       <SuppressStartupBanner>false</SuppressStartupBanner>
     </Xdcmake>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
+    <PreBuildEvent>
+      <Command>call "$(ProjectDir)JSBSim_commit.cmd"</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="src\initialization\FGLinearization.h" />
     <ClInclude Include="src\input_output\FGInputSocket.h" />

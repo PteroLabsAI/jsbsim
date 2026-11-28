@@ -394,6 +394,11 @@
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
   <ItemDefinitionGroup>
+    <PreBuildEvent>
+      <Command>call "$(ProjectDir)JSBSim_commit.cmd"</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
     <PostBuildEvent>
       <Command>mkdir UnrealEngine\Plugins\JSBSimFlightDynamicsModel\Source\ThirdParty\JSBSim\Include
 

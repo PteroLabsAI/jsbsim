@@ -1,5 +1,13 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
+set(JSBSIM_COMMIT_NAMING ${CMAKE_COMMAND} -DSOURCE=${PROJECT_SOURCE_DIR}
+    -DHEADER=${CMAKE_CURRENT_SOURCE_DIR}/JSBSim_commit.h
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/JSBSim_commit.cmake)
+execute_process(COMMAND ${JSBSIM_COMMIT_NAMING} RESULT_VARIABLE JSBSIM_COMMIT_FAILED)
+if(JSBSIM_COMMIT_FAILED)
+  message(FATAL_ERROR "src/JSBSim_commit.cmake named no commit")
+endif()
+
 ################################################################################
 # Define some commons compile flags.                                           #
 ################################################################################
@@ -52,6 +60,13 @@ set(OBJECT_LIBS $<BUILD_INTERFACE:Atmosphere>
                 $<BUILD_INTERFACE:Xml>)
 
 add_library(libJSBSim ${SOURCES})
+
+if(EXISTS ${PROJECT_SOURCE_DIR}/.git)
+  # Again at every build, so a commit made after configure is named too.
+  add_custom_target(JSBSimCommit COMMAND ${JSBSIM_COMMIT_NAMING}
+                    BYPRODUCTS ${CMAKE_CURRENT_SOURCE_DIR}/JSBSim_commit.h VERBATIM)
+  add_dependencies(libJSBSim JSBSimCommit)
+endif()
 target_link_libraries(libJSBSim PRIVATE ${OBJECT_LIBS})
 
 if(SYSTEM_EXPAT AND NOT BUILD_SHARED_LIBS)
