@@ -147,6 +147,11 @@ public:
   *   @return The version number of JSBSim. */
   static const std::string& GetVersion(void) {return JSBSim_version;}
 
+  /** The git commit this library is built from; JSBSIM_COMMIT in
+      JSBSim_commit.h beside the sources names the commit they were last
+      configured or built at. Uncommitted changes carry their HEAD's commit. */
+  static const char* GetCommit(void);
+
   static short debug_lvl;
 
   /** Converts from degrees Kelvin to degrees Fahrenheit.
